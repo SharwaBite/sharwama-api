@@ -9,7 +9,6 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard, Roles, RolesGuard } from '../common';
 import {
   ApiCreateZoneDocs,
@@ -25,7 +24,6 @@ import {
 } from './dto/delivery-zone.dto';
 import { ZonesService } from './zones.service';
 
-@ApiTags('Delivery Zones')
 @Controller()
 export class ZonesController {
   constructor(private readonly zonesService: ZonesService) {}
