@@ -42,6 +42,20 @@ async function bootstrap() {
     .setDescription('Sharwama ordering, payments, and admin dashboard API')
     .setVersion('1.0')
     .addBearerAuth()
+    .addTag('Health')
+    .addTag('Auth')
+    .addTag('Cart')
+    .addTag('Delivery Zones')
+    .addTag('Delivery Zones (Admin)')
+    .addTag('Menu')
+    .addTag('Menu Categories (Admin)')
+    .addTag('Menu Items (Admin)')
+    .addTag('Menu Option Groups (Admin)')
+    .addTag('Menu Options (Admin)')
+    .addTag('Promo Codes')
+    .addTag('Promo Codes (Admin)')
+    .addTag('Store Settings')
+    .addTag('Store Settings (Admin)')
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig, {
     autoTagControllers: false,

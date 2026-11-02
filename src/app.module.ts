@@ -8,6 +8,7 @@ import { AdminModule } from './admin/admin.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { CartModule } from './cart/cart.module';
 import { MenuModule } from './menu/menu.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OrdersModule } from './orders/orders.module';
@@ -39,13 +40,17 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       serviceId: 'sharwama-api',
     }),
     PrismaModule,
+    // 1. Auth first (after Health on AppController)
     AuthModule,
-    MenuModule,
-    StoreSettingsModule,
+    // 2. Remaining feature modules in alphabetical order of their Swagger tags:
+    // Cart -> Delivery Zones -> Menu -> Orders -> Payments -> Promo Codes -> Store Settings
+    CartModule,
     ZonesModule,
-    PromosModule,
+    MenuModule,
     OrdersModule,
     PaymentsModule,
+    PromosModule,
+    StoreSettingsModule,
     AdminModule,
     NotificationsModule,
   ],
