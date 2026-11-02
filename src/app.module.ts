@@ -14,6 +14,7 @@ import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PromosModule } from './promos/promos.module';
+import { StoreSettingsModule } from './store-settings/store-settings.module';
 import { ZonesModule } from './zones/zones.module';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
@@ -40,6 +41,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     PrismaModule,
     AuthModule,
     MenuModule,
+    StoreSettingsModule,
     ZonesModule,
     PromosModule,
     OrdersModule,

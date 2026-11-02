@@ -5,6 +5,7 @@ import {
   ApiOperation,
   ApiParam,
   ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { GoogleLoginDto } from '../../auth/dto/google-login.dto';
 import { LoginDto } from '../../auth/dto/login.dto';
@@ -33,6 +34,7 @@ import {
 
 export const ApiHealthDocs = () =>
   applyDecorators(
+    ApiTags('Health'),
     ApiOperation({ summary: 'Health and database connectivity check' }),
     ApiResponse({
       status: HttpStatus.OK,
@@ -54,6 +56,7 @@ export const ApiHealthDocs = () =>
 
 export const ApiRegisterDocs = () =>
   applyDecorators(
+    ApiTags('Auth'),
     ApiOperation({ summary: 'Register a new customer account' }),
     ApiBody({
       type: RegisterDto,
@@ -101,6 +104,7 @@ export const ApiRegisterDocs = () =>
 
 export const ApiLoginDocs = () =>
   applyDecorators(
+    ApiTags('Auth'),
     ApiOperation({ summary: 'Log in with email and password' }),
     ApiBody({
       type: LoginDto,
@@ -146,6 +150,7 @@ export const ApiLoginDocs = () =>
 
 export const ApiGoogleLoginDocs = () =>
   applyDecorators(
+    ApiTags('Auth'),
     ApiOperation({ summary: 'Log in or sign up with a Google ID token' }),
     ApiBody({
       type: GoogleLoginDto,
@@ -193,6 +198,7 @@ export const ApiGoogleLoginDocs = () =>
 
 export const ApiRefreshDocs = () =>
   applyDecorators(
+    ApiTags('Auth'),
     ApiOperation({ summary: 'Exchange a refresh token for new tokens' }),
     ApiBody({
       type: RefreshTokenDto,
@@ -230,6 +236,7 @@ export const ApiRefreshDocs = () =>
 
 export const ApiGetMeDocs = () =>
   applyDecorators(
+    ApiTags('Auth'),
     ApiBearerAuth(),
     ApiOperation({ summary: 'Get the currently authenticated user profile' }),
     ApiResponse({
@@ -279,13 +286,14 @@ export const ApiGetMeDocs = () =>
   );
 
 // ============================================================================
-// 3. DELIVERY ZONES ENDPOINTS (/api/v1/delivery-zones & /api/v1/admin/delivery-zones)
+// 3. DELIVERY ZONES ENDPOINTS (Public & Admin)
 // ============================================================================
 
 export const ApiGetActiveZonesDocs = () =>
   applyDecorators(
+    ApiTags('Delivery Zones'),
     ApiOperation({
-      summary: 'List all active delivery zones and fees (Public)',
+      summary: 'List all active delivery zones and fees',
     }),
     ApiResponse({
       status: HttpStatus.OK,
@@ -313,9 +321,10 @@ export const ApiGetActiveZonesDocs = () =>
 
 export const ApiGetAllZonesAdminDocs = () =>
   applyDecorators(
+    ApiTags('Delivery Zones (Admin)'),
     ApiBearerAuth(),
     ApiOperation({
-      summary: 'List all delivery zones including inactive ones (Admin)',
+      summary: 'List all delivery zones including inactive ones',
     }),
     ApiResponse({
       status: HttpStatus.OK,
@@ -343,8 +352,9 @@ export const ApiGetAllZonesAdminDocs = () =>
 
 export const ApiCreateZoneDocs = () =>
   applyDecorators(
+    ApiTags('Delivery Zones (Admin)'),
     ApiBearerAuth(),
-    ApiOperation({ summary: 'Create a new delivery zone (Admin)' }),
+    ApiOperation({ summary: 'Create a new delivery zone' }),
     ApiBody({
       type: CreateDeliveryZoneDto,
       examples: {
@@ -376,9 +386,10 @@ export const ApiCreateZoneDocs = () =>
 
 export const ApiUpdateZoneDocs = () =>
   applyDecorators(
+    ApiTags('Delivery Zones (Admin)'),
     ApiBearerAuth(),
     ApiOperation({
-      summary: 'Update a delivery zone fee, areas, or active status (Admin)',
+      summary: 'Update a delivery zone fee, areas, or active status',
     }),
     ApiParam({
       name: 'id',
@@ -432,8 +443,9 @@ export const ApiUpdateZoneDocs = () =>
 
 export const ApiDeleteZoneDocs = () =>
   applyDecorators(
+    ApiTags('Delivery Zones (Admin)'),
     ApiBearerAuth(),
-    ApiOperation({ summary: 'Delete a delivery zone (Admin)' }),
+    ApiOperation({ summary: 'Delete a delivery zone' }),
     ApiParam({
       name: 'id',
       description: 'Delivery zone UUID',
@@ -462,11 +474,12 @@ export const ApiDeleteZoneDocs = () =>
   );
 
 // ============================================================================
-// 4. MENU ENDPOINTS (/api/v1/menu & /api/v1/admin/menu)
+// 4. MENU ENDPOINTS (Public & Admin)
 // ============================================================================
 
 export const ApiGetPublicMenuDocs = () =>
   applyDecorators(
+    ApiTags('Menu'),
     ApiOperation({
       summary:
         'Get public menu categories, items, and options (cached for 1 minute)',
@@ -531,6 +544,7 @@ export const ApiGetPublicMenuDocs = () =>
 
 export const ApiGetMenuItemDocs = () =>
   applyDecorators(
+    ApiTags('Menu'),
     ApiOperation({
       summary: 'Get a single menu item with its option groups and options',
     }),
@@ -557,10 +571,10 @@ export const ApiGetMenuItemDocs = () =>
 
 export const ApiGetAdminMenuDocs = () =>
   applyDecorators(
+    ApiTags('Menu (Admin)'),
     ApiBearerAuth(),
     ApiOperation({
-      summary:
-        'Get full menu including inactive categories and sold-out items (Admin)',
+      summary: 'Get full menu including inactive categories and sold-out items',
     }),
     ApiResponse({
       status: HttpStatus.OK,
@@ -570,8 +584,9 @@ export const ApiGetAdminMenuDocs = () =>
 
 export const ApiCreateCategoryDocs = () =>
   applyDecorators(
+    ApiTags('Menu (Admin)'),
     ApiBearerAuth(),
-    ApiOperation({ summary: 'Create a menu category (Admin)' }),
+    ApiOperation({ summary: 'Create a menu category' }),
     ApiBody({
       type: CreateCategoryDto,
       examples: {
@@ -594,8 +609,9 @@ export const ApiCreateCategoryDocs = () =>
 
 export const ApiUpdateCategoryDocs = () =>
   applyDecorators(
+    ApiTags('Menu (Admin)'),
     ApiBearerAuth(),
-    ApiOperation({ summary: 'Update a menu category (Admin)' }),
+    ApiOperation({ summary: 'Update a menu category' }),
     ApiParam({
       name: 'id',
       description: 'Category UUID',
@@ -622,8 +638,9 @@ export const ApiUpdateCategoryDocs = () =>
 
 export const ApiDeleteCategoryDocs = () =>
   applyDecorators(
+    ApiTags('Menu (Admin)'),
     ApiBearerAuth(),
-    ApiOperation({ summary: 'Delete an empty menu category (Admin)' }),
+    ApiOperation({ summary: 'Delete an empty menu category' }),
     ApiParam({
       name: 'id',
       description: 'Category UUID',
@@ -648,10 +665,11 @@ export const ApiDeleteCategoryDocs = () =>
 
 export const ApiCreateMenuItemDocs = () =>
   applyDecorators(
+    ApiTags('Menu (Admin)'),
     ApiBearerAuth(),
     ApiOperation({
       summary:
-        'Create a menu item with optional nested option groups and options (Admin)',
+        'Create a menu item with optional nested option groups and options',
     }),
     ApiBody({
       type: CreateMenuItemDto,
@@ -704,8 +722,9 @@ export const ApiCreateMenuItemDocs = () =>
 
 export const ApiUpdateMenuItemDocs = () =>
   applyDecorators(
+    ApiTags('Menu (Admin)'),
     ApiBearerAuth(),
-    ApiOperation({ summary: 'Update a menu item (Admin)' }),
+    ApiOperation({ summary: 'Update a menu item' }),
     ApiParam({
       name: 'id',
       description: 'Menu item UUID',
@@ -732,9 +751,10 @@ export const ApiUpdateMenuItemDocs = () =>
 
 export const ApiToggleItemAvailabilityDocs = () =>
   applyDecorators(
+    ApiTags('Menu (Admin)'),
     ApiBearerAuth(),
     ApiOperation({
-      summary: 'Quick-toggle a menu item between Available and Sold Out (Admin)',
+      summary: 'Quick-toggle a menu item between Available and Sold Out',
     }),
     ApiParam({
       name: 'id',
@@ -769,8 +789,9 @@ export const ApiToggleItemAvailabilityDocs = () =>
 
 export const ApiDeleteMenuItemDocs = () =>
   applyDecorators(
+    ApiTags('Menu (Admin)'),
     ApiBearerAuth(),
-    ApiOperation({ summary: 'Delete a menu item (Admin)' }),
+    ApiOperation({ summary: 'Delete a menu item' }),
     ApiParam({
       name: 'id',
       description: 'Menu item UUID',
@@ -784,9 +805,10 @@ export const ApiDeleteMenuItemDocs = () =>
 
 export const ApiCreateOptionGroupDocs = () =>
   applyDecorators(
+    ApiTags('Menu (Admin)'),
     ApiBearerAuth(),
     ApiOperation({
-      summary: 'Add an option group to a menu item (Admin)',
+      summary: 'Add an option group to a menu item',
     }),
     ApiParam({
       name: 'itemId',
@@ -821,8 +843,9 @@ export const ApiCreateOptionGroupDocs = () =>
 
 export const ApiUpdateOptionGroupDocs = () =>
   applyDecorators(
+    ApiTags('Menu (Admin)'),
     ApiBearerAuth(),
-    ApiOperation({ summary: 'Update an option group (Admin)' }),
+    ApiOperation({ summary: 'Update an option group' }),
     ApiParam({
       name: 'groupId',
       description: 'Option group UUID',
@@ -850,8 +873,9 @@ export const ApiUpdateOptionGroupDocs = () =>
 
 export const ApiDeleteOptionGroupDocs = () =>
   applyDecorators(
+    ApiTags('Menu (Admin)'),
     ApiBearerAuth(),
-    ApiOperation({ summary: 'Delete an option group (Admin)' }),
+    ApiOperation({ summary: 'Delete an option group' }),
     ApiParam({
       name: 'groupId',
       description: 'Option group UUID',
@@ -865,8 +889,9 @@ export const ApiDeleteOptionGroupDocs = () =>
 
 export const ApiCreateOptionDocs = () =>
   applyDecorators(
+    ApiTags('Menu (Admin)'),
     ApiBearerAuth(),
-    ApiOperation({ summary: 'Add an option to an option group (Admin)' }),
+    ApiOperation({ summary: 'Add an option to an option group' }),
     ApiParam({
       name: 'groupId',
       description: 'Option group UUID',
@@ -894,9 +919,10 @@ export const ApiCreateOptionDocs = () =>
 
 export const ApiUpdateOptionDocs = () =>
   applyDecorators(
+    ApiTags('Menu (Admin)'),
     ApiBearerAuth(),
     ApiOperation({
-      summary: 'Update an option price, name, or availability (Admin)',
+      summary: 'Update an option price, name, or availability',
     }),
     ApiParam({
       name: 'optionId',
@@ -924,8 +950,9 @@ export const ApiUpdateOptionDocs = () =>
 
 export const ApiDeleteOptionDocs = () =>
   applyDecorators(
+    ApiTags('Menu (Admin)'),
     ApiBearerAuth(),
-    ApiOperation({ summary: 'Delete an option (Admin)' }),
+    ApiOperation({ summary: 'Delete an option' }),
     ApiParam({
       name: 'optionId',
       description: 'Option UUID',
@@ -938,14 +965,15 @@ export const ApiDeleteOptionDocs = () =>
   );
 
 // ============================================================================
-// 5. STORE SETTINGS ENDPOINTS (/api/v1/store-settings & /api/v1/admin/store-settings)
+// 5. STORE SETTINGS ENDPOINTS (Public & Admin)
 // ============================================================================
 
 export const ApiGetStoreSettingsDocs = () =>
   applyDecorators(
+    ApiTags('Store Settings'),
     ApiOperation({
       summary:
-        'Get current store open/closed status, hours, minimum order, and contact details (Public)',
+        'Get current store open/closed status, hours, minimum order, and contact details',
     }),
     ApiResponse({
       status: HttpStatus.OK,
@@ -974,10 +1002,11 @@ export const ApiGetStoreSettingsDocs = () =>
 
 export const ApiUpdateStoreSettingsDocs = () =>
   applyDecorators(
+    ApiTags('Store Settings (Admin)'),
     ApiBearerAuth(),
     ApiOperation({
       summary:
-        'Update store opening hours, manual Open/Closed override, or minimum order (Admin)',
+        'Update store opening hours, manual Open/Closed override, or minimum order',
     }),
     ApiBody({
       type: UpdateStoreSettingsDto,
