@@ -2,6 +2,7 @@ import { applyDecorators, HttpStatus } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
+  ApiHeader,
   ApiOperation,
   ApiParam,
   ApiResponse,
@@ -11,6 +12,13 @@ import { GoogleLoginDto } from '../../auth/dto/google-login.dto';
 import { LoginDto } from '../../auth/dto/login.dto';
 import { RefreshTokenDto } from '../../auth/dto/refresh-token.dto';
 import { RegisterDto } from '../../auth/dto/register.dto';
+import {
+  AddCartItemDto,
+  ApplyCartPromoDto,
+  MergeCartDto,
+  SetCartDeliveryDto,
+  UpdateCartItemDto,
+} from '../../cart/dto/cart.dto';
 import {
   CreateCategoryDto,
   CreateMenuItemDto,
@@ -22,6 +30,11 @@ import {
   UpdateOptionDto,
   UpdateOptionGroupDto,
 } from '../../menu/dto/menu.dto';
+import {
+  CreatePromoDto,
+  UpdatePromoDto,
+  ValidatePromoDto,
+} from '../../promos/dto/promo.dto';
 import { UpdateStoreSettingsDto } from '../../store-settings/dto/store-settings.dto';
 import {
   CreateDeliveryZoneDto,
@@ -1060,3 +1073,533 @@ export const ApiUpdateStoreSettingsDocs = () =>
       description: 'Updated store settings and evaluated open status',
     }),
   );
+
+// ============================================================================
+// 6. PROMO CODES ENDPOINTS (/api/v1/promo & /api/v1/admin/promos)
+// ============================================================================
+
+export const ApiValidatePromoDocs = () =>
+  applyDecorators(
+    ApiTags('Promo Codes'),
+    ApiOperation({
+      summary:
+        'Validate a promo code and optionally compute discount against a cart subtotal',
+    }),
+    ApiBody({
+      type: ValidatePromoDto,
+      schema: {
+        example: {
+          code: 'WELCOME10',
+          subtotal: 820000,
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Promo code is valid and discount calculated in kobo',
+      schema: {
+        example: {
+          valid: true,
+          id: '0195f1e2-c001-7000-8000-000000000501',
+          code: 'WELCOME10',
+          type: 'PERCENT',
+          value: 10,
+          minOrder: 500000,
+          discount: 82000,
+          expiresAt: '2026-12-31T23:59:59.000Z',
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.BAD_REQUEST,
+      description:
+        'Promo code is invalid, expired, inactive, exhausted, or below minOrder',
+      schema: {
+        example: {
+          statusCode: 400,
+          message:
+            'Promo code "WELCOME10" requires a minimum order of ₦5,000.00',
+          error: 'Bad Request',
+        },
+      },
+    }),
+  );
+
+export const ApiGetAdminPromosDocs = () =>
+  applyDecorators(
+    ApiTags('Promo Codes (Admin)'),
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'List all promo codes (active, inactive, and expired)',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'List of all promo codes',
+      schema: {
+        example: [
+          {
+            id: '0195f1e2-c001-7000-8000-000000000501',
+            code: 'WELCOME10',
+            type: 'PERCENT',
+            value: 10,
+            minOrder: 500000,
+            maxUses: 200,
+            usedCount: 14,
+            expiresAt: '2026-12-31T23:59:59.000Z',
+            isActive: true,
+          },
+          {
+            id: '0195f1e2-c001-7000-8000-000000000502',
+            code: 'SHAWARMA1K',
+            type: 'FIXED',
+            value: 100000,
+            minOrder: 600000,
+            maxUses: null,
+            usedCount: 5,
+            expiresAt: null,
+            isActive: true,
+          },
+        ],
+      },
+    }),
+  );
+
+export const ApiCreatePromoDocs = () =>
+  applyDecorators(
+    ApiTags('Promo Codes (Admin)'),
+    ApiBearerAuth(),
+    ApiOperation({ summary: 'Create a new promo code (PERCENT or FIXED)' }),
+    ApiBody({
+      type: CreatePromoDto,
+      examples: {
+        percentPromo: {
+          summary: '10% off orders above ₦5,000',
+          value: {
+            code: 'WELCOME10',
+            type: 'PERCENT',
+            value: 10,
+            minOrder: 500000,
+            maxUses: 200,
+            expiresAt: '2026-12-31T23:59:59.000Z',
+            isActive: true,
+          },
+        },
+        fixedPromo: {
+          summary: '₦1,000 (100,000 kobo) off orders above ₦6,000',
+          value: {
+            code: 'SHAWARMA1K',
+            type: 'FIXED',
+            value: 100000,
+            minOrder: 600000,
+            maxUses: null,
+            expiresAt: null,
+            isActive: true,
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.CREATED,
+      description: 'Created promo code',
+      schema: {
+        example: {
+          id: '0195f1e2-c001-7000-8000-000000000501',
+          code: 'WELCOME10',
+          type: 'PERCENT',
+          value: 10,
+          minOrder: 500000,
+          maxUses: 200,
+          usedCount: 0,
+          expiresAt: '2026-12-31T23:59:59.000Z',
+          isActive: true,
+        },
+      },
+    }),
+  );
+
+export const ApiUpdatePromoDocs = () =>
+  applyDecorators(
+    ApiTags('Promo Codes (Admin)'),
+    ApiBearerAuth(),
+    ApiOperation({ summary: 'Update an existing promo code' }),
+    ApiParam({
+      name: 'id',
+      description: 'Promo Code UUID',
+      example: '0195f1e2-c001-7000-8000-000000000501',
+    }),
+    ApiBody({
+      type: UpdatePromoDto,
+      schema: {
+        example: {
+          value: 15,
+          minOrder: 550000,
+          maxUses: 300,
+          isActive: true,
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Updated promo code',
+      schema: {
+        example: {
+          id: '0195f1e2-c001-7000-8000-000000000501',
+          code: 'WELCOME10',
+          type: 'PERCENT',
+          value: 15,
+          minOrder: 550000,
+          maxUses: 300,
+          usedCount: 14,
+          expiresAt: '2026-12-31T23:59:59.000Z',
+          isActive: true,
+        },
+      },
+    }),
+  );
+
+export const ApiDeletePromoDocs = () =>
+  applyDecorators(
+    ApiTags('Promo Codes (Admin)'),
+    ApiBearerAuth(),
+    ApiOperation({ summary: 'Delete a promo code' }),
+    ApiParam({
+      name: 'id',
+      description: 'Promo Code UUID',
+      example: '0195f1e2-c001-7000-8000-000000000501',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Promo code deleted',
+      schema: {
+        example: {
+          deleted: true,
+          id: '0195f1e2-c001-7000-8000-000000000501',
+        },
+      },
+    }),
+  );
+
+// ============================================================================
+// 7. CART ENDPOINTS (/api/v1/cart)
+// ============================================================================
+
+const SAMPLE_CART_RESPONSE = {
+  id: '0195f1e2-d001-7000-8000-000000000601',
+  cartToken: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+  userId: null,
+  orderType: 'DELIVERY',
+  zoneId: '0195f1e2-a1b2-7000-8000-000000000001',
+  deliveryZone: {
+    id: '0195f1e2-a1b2-7000-8000-000000000001',
+    name: 'Lekki Phase 1 & Environs',
+    fee: 150000,
+    isActive: true,
+  },
+  promo: {
+    id: '0195f1e2-c001-7000-8000-000000000501',
+    code: 'WELCOME10',
+    type: 'PERCENT',
+    value: 10,
+    minOrder: 500000,
+    discount: 86000,
+    valid: true,
+  },
+  items: [
+    {
+      id: '0195f1e2-d002-7000-8000-000000000602',
+      menuItemId: '0195f1e2-b011-7000-8000-000000000201',
+      name: 'Classic Chicken Shawarma',
+      imageUrl: 'https://cdn.sharwama.ng/menu/classic-chicken.jpg',
+      cutoutUrl: 'https://cdn.sharwama.ng/menu/classic-chicken-cutout.png',
+      basePrice: 350000,
+      optionsPrice: 80000,
+      unitPrice: 430000,
+      quantity: 2,
+      lineTotal: 860000,
+      notes: 'Extra spicy, light mayo please',
+      selectedOptionIds: [
+        '0195f1e2-b011-7000-8000-000000000401',
+        '0195f1e2-b011-7000-8000-000000000402',
+      ],
+      selectedOptions: [
+        {
+          id: '0195f1e2-b011-7000-8000-000000000401',
+          name: 'Double Sausage',
+          groupId: '0195f1e2-b011-7000-8000-000000000301',
+          groupName: 'Sausage Selection',
+          priceDelta: 50000,
+          isAvailable: true,
+        },
+        {
+          id: '0195f1e2-b011-7000-8000-000000000402',
+          name: 'Extra Cheese',
+          groupId: '0195f1e2-b011-7000-8000-000000000302',
+          groupName: 'Add-Ons',
+          priceDelta: 30000,
+          isAvailable: true,
+        },
+      ],
+      isAvailable: true,
+      unavailableOptions: [],
+      issues: [],
+    },
+  ],
+  itemCount: 2,
+  subtotal: 860000,
+  deliveryFee: 150000,
+  discount: 86000,
+  total: 924000,
+  isStoreOpen: true,
+  minOrderAmount: 300000,
+  meetsMinOrder: true,
+  hasUnavailableItems: false,
+  canCheckout: true,
+  warnings: [],
+  updatedAt: '2026-11-02T17:30:00.000Z',
+};
+
+const OPTIONAL_CART_TOKEN_HEADER = ApiHeader({
+  name: 'X-Cart-Token',
+  required: false,
+  description:
+    'Guest cart token (optional if sent via cart_token httpOnly cookie or authenticated via Bearer token)',
+  example: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+});
+
+export const ApiGetCartDocs = () =>
+  applyDecorators(
+    ApiTags('Cart'),
+    ApiBearerAuth(),
+    OPTIONAL_CART_TOKEN_HEADER,
+    ApiOperation({
+      summary:
+        'Get the current cart, re-priced and re-validated (sold-out or changed items flagged)',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description:
+        'Current cart with server-calculated prices, availability flags, and totals',
+      schema: {
+        example: SAMPLE_CART_RESPONSE,
+      },
+    }),
+  );
+
+export const ApiAddCartItemDocs = () =>
+  applyDecorators(
+    ApiTags('Cart'),
+    ApiBearerAuth(),
+    OPTIONAL_CART_TOKEN_HEADER,
+    ApiOperation({
+      summary:
+        'Add an item to the cart (issues X-Cart-Token header and cart_token httpOnly cookie on first guest item)',
+    }),
+    ApiBody({
+      type: AddCartItemDto,
+      schema: {
+        example: {
+          menuItemId: '0195f1e2-b011-7000-8000-000000000201',
+          optionIds: [
+            '0195f1e2-b011-7000-8000-000000000401',
+            '0195f1e2-b011-7000-8000-000000000402',
+          ],
+          quantity: 2,
+          notes: 'Extra spicy, light mayo please',
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.CREATED,
+      description: 'Updated cart with newly added item and server-side totals',
+      schema: {
+        example: SAMPLE_CART_RESPONSE,
+      },
+    }),
+  );
+
+export const ApiUpdateCartItemDocs = () =>
+  applyDecorators(
+    ApiTags('Cart'),
+    ApiBearerAuth(),
+    OPTIONAL_CART_TOKEN_HEADER,
+    ApiOperation({
+      summary: 'Change quantity, selected options, or notes for a cart line',
+    }),
+    ApiParam({
+      name: 'itemId',
+      description: 'Cart Item UUID',
+      example: '0195f1e2-d002-7000-8000-000000000602',
+    }),
+    ApiBody({
+      type: UpdateCartItemDto,
+      schema: {
+        example: {
+          quantity: 3,
+          optionIds: ['0195f1e2-b011-7000-8000-000000000401'],
+          notes: 'No onions please',
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Updated cart with re-calculated prices and totals',
+      schema: {
+        example: SAMPLE_CART_RESPONSE,
+      },
+    }),
+  );
+
+export const ApiRemoveCartItemDocs = () =>
+  applyDecorators(
+    ApiTags('Cart'),
+    ApiBearerAuth(),
+    OPTIONAL_CART_TOKEN_HEADER,
+    ApiOperation({ summary: 'Remove one line item from the cart' }),
+    ApiParam({
+      name: 'itemId',
+      description: 'Cart Item UUID',
+      example: '0195f1e2-d002-7000-8000-000000000602',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Updated cart after removing the item line',
+      schema: {
+        example: SAMPLE_CART_RESPONSE,
+      },
+    }),
+  );
+
+export const ApiClearCartDocs = () =>
+  applyDecorators(
+    ApiTags('Cart'),
+    ApiBearerAuth(),
+    OPTIONAL_CART_TOKEN_HEADER,
+    ApiOperation({ summary: 'Clear all items and promo code from the cart' }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Cleared cart',
+      schema: {
+        example: {
+          ...SAMPLE_CART_RESPONSE,
+          promo: null,
+          items: [],
+          itemCount: 0,
+          subtotal: 0,
+          discount: 0,
+          total: 150000,
+          meetsMinOrder: false,
+          canCheckout: false,
+        },
+      },
+    }),
+  );
+
+export const ApiSetCartDeliveryDocs = () =>
+  applyDecorators(
+    ApiTags('Cart'),
+    ApiBearerAuth(),
+    OPTIONAL_CART_TOKEN_HEADER,
+    ApiOperation({
+      summary:
+        'Set order fulfillment type (DELIVERY or PICKUP) and delivery zone ID so delivery fee is calculated',
+    }),
+    ApiBody({
+      type: SetCartDeliveryDto,
+      examples: {
+        delivery: {
+          summary: 'Set to DELIVERY with a zone ID',
+          value: {
+            type: 'DELIVERY',
+            zoneId: '0195f1e2-a1b2-7000-8000-000000000001',
+          },
+        },
+        pickup: {
+          summary: 'Set to PICKUP (zero delivery fee)',
+          value: {
+            type: 'PICKUP',
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Updated cart with delivery fee and total recalculated',
+      schema: {
+        example: SAMPLE_CART_RESPONSE,
+      },
+    }),
+  );
+
+export const ApiApplyCartPromoDocs = () =>
+  applyDecorators(
+    ApiTags('Cart'),
+    ApiBearerAuth(),
+    OPTIONAL_CART_TOKEN_HEADER,
+    ApiOperation({ summary: 'Apply a promo code to the current cart' }),
+    ApiBody({
+      type: ApplyCartPromoDto,
+      schema: {
+        example: {
+          code: 'WELCOME10',
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Updated cart with promo code applied and discount deducted',
+      schema: {
+        example: SAMPLE_CART_RESPONSE,
+      },
+    }),
+  );
+
+export const ApiRemoveCartPromoDocs = () =>
+  applyDecorators(
+    ApiTags('Cart'),
+    ApiBearerAuth(),
+    OPTIONAL_CART_TOKEN_HEADER,
+    ApiOperation({ summary: 'Remove the applied promo code from the cart' }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Updated cart with promo code removed',
+      schema: {
+        example: {
+          ...SAMPLE_CART_RESPONSE,
+          promo: null,
+          discount: 0,
+          total: 1010000,
+        },
+      },
+    }),
+  );
+
+export const ApiMergeCartDocs = () =>
+  applyDecorators(
+    ApiTags('Cart'),
+    ApiBearerAuth(),
+    OPTIONAL_CART_TOKEN_HEADER,
+    ApiOperation({
+      summary:
+        'After login, merge the guest cart into the authenticated user cart',
+    }),
+    ApiBody({
+      type: MergeCartDto,
+      required: false,
+      schema: {
+        example: {
+          guestCartToken: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Merged authenticated user cart',
+      schema: {
+        example: {
+          ...SAMPLE_CART_RESPONSE,
+          userId: '0195f1e2-0001-7000-8000-000000000099',
+        },
+      },
+    }),
+  );
+
