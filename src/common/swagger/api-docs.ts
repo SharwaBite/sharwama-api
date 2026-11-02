@@ -11,6 +11,18 @@ import { LoginDto } from '../../auth/dto/login.dto';
 import { RefreshTokenDto } from '../../auth/dto/refresh-token.dto';
 import { RegisterDto } from '../../auth/dto/register.dto';
 import {
+  CreateCategoryDto,
+  CreateMenuItemDto,
+  CreateOptionDto,
+  CreateOptionGroupDto,
+  ToggleAvailabilityDto,
+  UpdateCategoryDto,
+  UpdateMenuItemDto,
+  UpdateOptionDto,
+  UpdateOptionGroupDto,
+  UpdateStoreSettingsDto,
+} from '../../menu/dto/menu.dto';
+import {
   CreateDeliveryZoneDto,
   UpdateDeliveryZoneDto,
 } from '../../zones/dto/delivery-zone.dto';
@@ -448,4 +460,577 @@ export const ApiDeleteZoneDocs = () =>
       },
     }),
   );
+
+// ============================================================================
+// 4. MENU & STORE SETTINGS ENDPOINTS (/api/v1/menu & /api/v1/admin/menu)
+// ============================================================================
+
+export const ApiGetPublicMenuDocs = () =>
+  applyDecorators(
+    ApiOperation({
+      summary:
+        'Get public menu categories, items, options, and current store open status (cached 1m)',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Public menu with store hours/open status and categories',
+      schema: {
+        example: {
+          store: {
+            isOpen: true,
+            isOpenOverride: null,
+            minOrderAmount: 300000,
+            shopPhone: '08030000000',
+            shopAddress: '14 Admiralty Way, Lekki Phase 1, Lagos',
+            closedMessage: null,
+            openingHours: {
+              mon: { open: '10:00', close: '22:00', closed: false },
+              tue: { open: '10:00', close: '22:00', closed: false },
+              wed: { open: '10:00', close: '22:00', closed: false },
+              thu: { open: '10:00', close: '22:00', closed: false },
+              fri: { open: '10:00', close: '23:00', closed: false },
+              sat: { open: '10:00', close: '23:00', closed: false },
+              sun: { open: '12:00', close: '22:00', closed: false },
+            },
+          },
+          categories: [
+            {
+              id: '0195e4a0-0000-7000-8000-000000000100',
+              name: 'Signature Wraps',
+              imageUrl:
+                'https://cdn.sharwama.ng/categories/signature-wraps.webp',
+              sortOrder: 1,
+              isActive: true,
+              items: [
+                {
+                  id: '0195e4a0-0000-7000-8000-000000000200',
+                  categoryId: '0195e4a0-0000-7000-8000-000000000100',
+                  name: 'Chicken Special Shawarma',
+                  description:
+                    'Grilled spiced chicken strips, double beef sausage, creamy garlic-pepper sauce in toasted pita.',
+                  basePrice: 450000,
+                  imageUrl:
+                    'https://cdn.sharwama.ng/items/chicken-special.webp',
+                  cutoutUrl: null,
+                  isAvailable: true,
+                  isFeatured: true,
+                  sortOrder: 1,
+                  optionGroups: [
+                    {
+                      id: '0195e4a0-0000-7000-8000-000000000300',
+                      itemId: '0195e4a0-0000-7000-8000-000000000200',
+                      name: 'Extras & Toppings',
+                      isRequired: false,
+                      minSelect: 0,
+                      maxSelect: 3,
+                      sortOrder: 1,
+                      options: [
+                        {
+                          id: '0195e4a0-0000-7000-8000-000000000400',
+                          groupId: '0195e4a0-0000-7000-8000-000000000300',
+                          name: 'Extra Sausage',
+                          priceDelta: 50000,
+                          imageUrl: null,
+                          isAvailable: true,
+                          sortOrder: 1,
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    }),
+  );
+
+export const ApiGetMenuItemDocs = () =>
+  applyDecorators(
+    ApiOperation({
+      summary: 'Get a single menu item with its option groups and options',
+    }),
+    ApiParam({
+      name: 'id',
+      description: 'Menu item UUID',
+      example: '0195e4a0-0000-7000-8000-000000000200',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Menu item details with option groups',
+    }),
+    ApiResponse({
+      status: HttpStatus.NOT_FOUND,
+      description: 'Menu item not found',
+      schema: {
+        example: {
+          code: 'MENU_ITEM_NOT_FOUND',
+          message: 'Menu item not found',
+        },
+      },
+    }),
+  );
+
+export const ApiGetStoreSettingsDocs = () =>
+  applyDecorators(
+    ApiOperation({
+      summary:
+        'Get current store open/closed status, hours, minimum order, and contact details (Public)',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Store settings and evaluated open status',
+      schema: {
+        example: {
+          isOpen: true,
+          isOpenOverride: null,
+          minOrderAmount: 300000,
+          shopPhone: '08030000000',
+          shopAddress: '14 Admiralty Way, Lekki Phase 1, Lagos',
+          closedMessage: null,
+          openingHours: {
+            mon: { open: '10:00', close: '22:00', closed: false },
+            tue: { open: '10:00', close: '22:00', closed: false },
+            wed: { open: '10:00', close: '22:00', closed: false },
+            thu: { open: '10:00', close: '22:00', closed: false },
+            fri: { open: '10:00', close: '23:00', closed: false },
+            sat: { open: '10:00', close: '23:00', closed: false },
+            sun: { open: '12:00', close: '22:00', closed: false },
+          },
+        },
+      },
+    }),
+  );
+
+export const ApiUpdateStoreSettingsDocs = () =>
+  applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary:
+        'Update store opening hours, manual Open/Closed override, or minimum order (Admin)',
+    }),
+    ApiBody({
+      type: UpdateStoreSettingsDto,
+      examples: {
+        updateAll: {
+          summary: 'Configure shop details, minimum order, and weekly schedule',
+          value: {
+            isOpenOverride: null,
+            minOrderAmount: 300000,
+            shopPhone: '08030000000',
+            shopAddress: '14 Admiralty Way, Lekki Phase 1, Lagos',
+            openingHours: {
+              mon: { open: '10:00', close: '22:00', closed: false },
+              tue: { open: '10:00', close: '22:00', closed: false },
+              wed: { open: '10:00', close: '22:00', closed: false },
+              thu: { open: '10:00', close: '22:00', closed: false },
+              fri: { open: '10:00', close: '23:00', closed: false },
+              sat: { open: '10:00', close: '23:00', closed: false },
+              sun: { open: '12:00', close: '22:00', closed: false },
+            },
+          },
+        },
+        forceClose: {
+          summary: 'Manually close the shop immediately',
+          value: {
+            isOpenOverride: false,
+          },
+        },
+        forceOpen: {
+          summary: 'Manually force the shop open',
+          value: {
+            isOpenOverride: true,
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Updated store settings and evaluated open status',
+    }),
+  );
+
+export const ApiGetAdminMenuDocs = () =>
+  applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary:
+        'Get full menu including inactive categories and sold-out items (Admin)',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Complete menu tree for the admin menu manager',
+    }),
+  );
+
+export const ApiCreateCategoryDocs = () =>
+  applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({ summary: 'Create a menu category (Admin)' }),
+    ApiBody({
+      type: CreateCategoryDto,
+      examples: {
+        wraps: {
+          summary: 'Create Signature Wraps category',
+          value: {
+            name: 'Signature Wraps',
+            imageUrl: 'https://cdn.sharwama.ng/categories/signature-wraps.webp',
+            sortOrder: 1,
+            isActive: true,
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.CREATED,
+      description: 'Category created',
+    }),
+  );
+
+export const ApiUpdateCategoryDocs = () =>
+  applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({ summary: 'Update a menu category (Admin)' }),
+    ApiParam({
+      name: 'id',
+      description: 'Category UUID',
+      example: '0195e4a0-0000-7000-8000-000000000100',
+    }),
+    ApiBody({
+      type: UpdateCategoryDto,
+      examples: {
+        updateCategory: {
+          summary: 'Rename or reorder category',
+          value: {
+            name: 'Classic & Jumbo Wraps',
+            sortOrder: 1,
+            isActive: true,
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Category updated',
+    }),
+  );
+
+export const ApiDeleteCategoryDocs = () =>
+  applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({ summary: 'Delete an empty menu category (Admin)' }),
+    ApiParam({
+      name: 'id',
+      description: 'Category UUID',
+      example: '0195e4a0-0000-7000-8000-000000000100',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Category deleted',
+    }),
+    ApiResponse({
+      status: HttpStatus.CONFLICT,
+      description: 'Category still contains menu items',
+      schema: {
+        example: {
+          code: 'CATEGORY_NOT_EMPTY',
+          message:
+            'Cannot delete a category that still contains menu items. Move or delete its items first.',
+        },
+      },
+    }),
+  );
+
+export const ApiCreateMenuItemDocs = () =>
+  applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary:
+        'Create a menu item with optional nested option groups and options (Admin)',
+    }),
+    ApiBody({
+      type: CreateMenuItemDto,
+      examples: {
+        chickenSpecial: {
+          summary: 'Create Chicken Special Shawarma with Size & Extras options',
+          value: {
+            categoryId: '0195e4a0-0000-7000-8000-000000000100',
+            name: 'Chicken Special Shawarma',
+            description:
+              'Grilled spiced chicken strips, double beef sausage, creamy garlic-pepper sauce, and crunchy cabbage wrapped in toasted Lebanese pita.',
+            basePrice: 450000,
+            imageUrl: 'https://cdn.sharwama.ng/items/chicken-special.webp',
+            isAvailable: true,
+            isFeatured: true,
+            sortOrder: 1,
+            optionGroups: [
+              {
+                name: 'Size',
+                isRequired: true,
+                minSelect: 1,
+                maxSelect: 1,
+                sortOrder: 1,
+                options: [
+                  { name: 'Regular', priceDelta: 0, sortOrder: 1 },
+                  { name: 'Jumbo', priceDelta: 100000, sortOrder: 2 },
+                ],
+              },
+              {
+                name: 'Extras & Toppings',
+                isRequired: false,
+                minSelect: 0,
+                maxSelect: 3,
+                sortOrder: 2,
+                options: [
+                  { name: 'Extra Sausage', priceDelta: 50000, sortOrder: 1 },
+                  { name: 'Extra Cheese', priceDelta: 60000, sortOrder: 2 },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.CREATED,
+      description: 'Menu item created with option groups',
+    }),
+  );
+
+export const ApiUpdateMenuItemDocs = () =>
+  applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({ summary: 'Update a menu item (Admin)' }),
+    ApiParam({
+      name: 'id',
+      description: 'Menu item UUID',
+      example: '0195e4a0-0000-7000-8000-000000000200',
+    }),
+    ApiBody({
+      type: UpdateMenuItemDto,
+      examples: {
+        updatePrice: {
+          summary: 'Update item price and description',
+          value: {
+            name: 'Chicken Special Shawarma',
+            basePrice: 480000,
+            isFeatured: true,
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Menu item updated',
+    }),
+  );
+
+export const ApiToggleItemAvailabilityDocs = () =>
+  applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'Quick-toggle a menu item between Available and Sold Out (Admin)',
+    }),
+    ApiParam({
+      name: 'id',
+      description: 'Menu item UUID',
+      example: '0195e4a0-0000-7000-8000-000000000200',
+    }),
+    ApiBody({
+      type: ToggleAvailabilityDto,
+      examples: {
+        markSoldOut: {
+          summary: 'Mark item Sold Out',
+          value: { isAvailable: false },
+        },
+        markInStock: {
+          summary: 'Mark item back in stock',
+          value: { isAvailable: true },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Item availability updated and menu cache invalidated',
+      schema: {
+        example: {
+          id: '0195e4a0-0000-7000-8000-000000000200',
+          name: 'Chicken Special Shawarma',
+          isAvailable: false,
+        },
+      },
+    }),
+  );
+
+export const ApiDeleteMenuItemDocs = () =>
+  applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({ summary: 'Delete a menu item (Admin)' }),
+    ApiParam({
+      name: 'id',
+      description: 'Menu item UUID',
+      example: '0195e4a0-0000-7000-8000-000000000200',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Menu item deleted',
+    }),
+  );
+
+export const ApiCreateOptionGroupDocs = () =>
+  applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'Add an option group to a menu item (Admin)',
+    }),
+    ApiParam({
+      name: 'itemId',
+      description: 'Menu item UUID',
+      example: '0195e4a0-0000-7000-8000-000000000200',
+    }),
+    ApiBody({
+      type: CreateOptionGroupDto,
+      examples: {
+        spiceLevel: {
+          summary: 'Create required Spice Level option group',
+          value: {
+            name: 'Spice Level',
+            isRequired: true,
+            minSelect: 1,
+            maxSelect: 1,
+            sortOrder: 3,
+            options: [
+              { name: 'Mild', priceDelta: 0, sortOrder: 1 },
+              { name: 'Medium Pepper', priceDelta: 0, sortOrder: 2 },
+              { name: 'Extra Spicy', priceDelta: 0, sortOrder: 3 },
+            ],
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.CREATED,
+      description: 'Option group created',
+    }),
+  );
+
+export const ApiUpdateOptionGroupDocs = () =>
+  applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({ summary: 'Update an option group (Admin)' }),
+    ApiParam({
+      name: 'groupId',
+      description: 'Option group UUID',
+      example: '0195e4a0-0000-7000-8000-000000000300',
+    }),
+    ApiBody({
+      type: UpdateOptionGroupDto,
+      examples: {
+        updateGroup: {
+          summary: 'Update option group limits',
+          value: {
+            name: 'Extras & Toppings',
+            isRequired: false,
+            minSelect: 0,
+            maxSelect: 4,
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Option group updated',
+    }),
+  );
+
+export const ApiDeleteOptionGroupDocs = () =>
+  applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({ summary: 'Delete an option group (Admin)' }),
+    ApiParam({
+      name: 'groupId',
+      description: 'Option group UUID',
+      example: '0195e4a0-0000-7000-8000-000000000300',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Option group deleted',
+    }),
+  );
+
+export const ApiCreateOptionDocs = () =>
+  applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({ summary: 'Add an option to an option group (Admin)' }),
+    ApiParam({
+      name: 'groupId',
+      description: 'Option group UUID',
+      example: '0195e4a0-0000-7000-8000-000000000300',
+    }),
+    ApiBody({
+      type: CreateOptionDto,
+      examples: {
+        extraJalapeno: {
+          summary: 'Add Jalapeño Peppers option (+₦400)',
+          value: {
+            name: 'Jalapeño Peppers',
+            priceDelta: 40000,
+            isAvailable: true,
+            sortOrder: 3,
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.CREATED,
+      description: 'Option created',
+    }),
+  );
+
+export const ApiUpdateOptionDocs = () =>
+  applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'Update an option price, name, or availability (Admin)',
+    }),
+    ApiParam({
+      name: 'optionId',
+      description: 'Option UUID',
+      example: '0195e4a0-0000-7000-8000-000000000400',
+    }),
+    ApiBody({
+      type: UpdateOptionDto,
+      examples: {
+        updateOption: {
+          summary: 'Update option price and availability',
+          value: {
+            name: 'Double Beef Sausage',
+            priceDelta: 60000,
+            isAvailable: true,
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Option updated',
+    }),
+  );
+
+export const ApiDeleteOptionDocs = () =>
+  applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({ summary: 'Delete an option (Admin)' }),
+    ApiParam({
+      name: 'optionId',
+      description: 'Option UUID',
+      example: '0195e4a0-0000-7000-8000-000000000400',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Option deleted',
+    }),
+  );
+
 
