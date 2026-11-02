@@ -9,7 +9,6 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard, Roles, RolesGuard } from '../common';
 import {
   ApiCreateCategoryDocs,
@@ -43,7 +42,6 @@ import {
 } from './dto/menu.dto';
 import { MenuService } from './menu.service';
 
-@ApiTags('Menu')
 @Controller()
 export class MenuController {
   constructor(private readonly menuService: MenuService) {}
