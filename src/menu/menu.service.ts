@@ -17,7 +17,7 @@ import {
   UpdateOptionGroupDto,
 } from './dto/menu.dto';
 
-const MENU_CACHE_TTL_MS = 60_000; // 1 minute per PRD FR-5
+const MENU_CACHE_TTL_MS = 60_000; 
 
 @Injectable()
 export class MenuService {
