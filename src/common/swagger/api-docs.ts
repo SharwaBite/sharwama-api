@@ -51,7 +51,7 @@ export const ApiHealthDocs = () =>
   );
 
 // ============================================================================
-// 2. AUTH ENDPOINTS (/api/v1/auth)
+// 2. AUTH ENDPOINTS (/api//auth)
 // ============================================================================
 
 export const ApiRegisterDocs = () =>
@@ -571,7 +571,7 @@ export const ApiGetMenuItemDocs = () =>
 
 export const ApiGetAdminMenuDocs = () =>
   applyDecorators(
-    ApiTags('Menu (Admin)'),
+    ApiTags('Menu Categories (Admin)'),
     ApiBearerAuth(),
     ApiOperation({
       summary: 'Get full menu including inactive categories and sold-out items',
@@ -584,7 +584,7 @@ export const ApiGetAdminMenuDocs = () =>
 
 export const ApiCreateCategoryDocs = () =>
   applyDecorators(
-    ApiTags('Menu (Admin)'),
+    ApiTags('Menu Categories (Admin)'),
     ApiBearerAuth(),
     ApiOperation({ summary: 'Create a menu category' }),
     ApiBody({
@@ -609,7 +609,7 @@ export const ApiCreateCategoryDocs = () =>
 
 export const ApiUpdateCategoryDocs = () =>
   applyDecorators(
-    ApiTags('Menu (Admin)'),
+    ApiTags('Menu Categories (Admin)'),
     ApiBearerAuth(),
     ApiOperation({ summary: 'Update a menu category' }),
     ApiParam({
@@ -638,7 +638,7 @@ export const ApiUpdateCategoryDocs = () =>
 
 export const ApiDeleteCategoryDocs = () =>
   applyDecorators(
-    ApiTags('Menu (Admin)'),
+    ApiTags('Menu Categories (Admin)'),
     ApiBearerAuth(),
     ApiOperation({ summary: 'Delete an empty menu category' }),
     ApiParam({
@@ -663,9 +663,13 @@ export const ApiDeleteCategoryDocs = () =>
     }),
   );
 
+// ----------------------------------------------------------------------------
+// 4B. MENU ITEMS (ADMIN)
+// ----------------------------------------------------------------------------
+
 export const ApiCreateMenuItemDocs = () =>
   applyDecorators(
-    ApiTags('Menu (Admin)'),
+    ApiTags('Menu Items (Admin)'),
     ApiBearerAuth(),
     ApiOperation({
       summary:
@@ -722,7 +726,7 @@ export const ApiCreateMenuItemDocs = () =>
 
 export const ApiUpdateMenuItemDocs = () =>
   applyDecorators(
-    ApiTags('Menu (Admin)'),
+    ApiTags('Menu Items (Admin)'),
     ApiBearerAuth(),
     ApiOperation({ summary: 'Update a menu item' }),
     ApiParam({
@@ -751,7 +755,7 @@ export const ApiUpdateMenuItemDocs = () =>
 
 export const ApiToggleItemAvailabilityDocs = () =>
   applyDecorators(
-    ApiTags('Menu (Admin)'),
+    ApiTags('Menu Items (Admin)'),
     ApiBearerAuth(),
     ApiOperation({
       summary: 'Quick-toggle a menu item between Available and Sold Out',
@@ -789,7 +793,7 @@ export const ApiToggleItemAvailabilityDocs = () =>
 
 export const ApiDeleteMenuItemDocs = () =>
   applyDecorators(
-    ApiTags('Menu (Admin)'),
+    ApiTags('Menu Items (Admin)'),
     ApiBearerAuth(),
     ApiOperation({ summary: 'Delete a menu item' }),
     ApiParam({
@@ -803,9 +807,13 @@ export const ApiDeleteMenuItemDocs = () =>
     }),
   );
 
+// ----------------------------------------------------------------------------
+// 4C. MENU OPTION GROUPS (ADMIN)
+// ----------------------------------------------------------------------------
+
 export const ApiCreateOptionGroupDocs = () =>
   applyDecorators(
-    ApiTags('Menu (Admin)'),
+    ApiTags('Menu Option Groups (Admin)'),
     ApiBearerAuth(),
     ApiOperation({
       summary: 'Add an option group to a menu item',
@@ -843,7 +851,7 @@ export const ApiCreateOptionGroupDocs = () =>
 
 export const ApiUpdateOptionGroupDocs = () =>
   applyDecorators(
-    ApiTags('Menu (Admin)'),
+    ApiTags('Menu Option Groups (Admin)'),
     ApiBearerAuth(),
     ApiOperation({ summary: 'Update an option group' }),
     ApiParam({
@@ -873,7 +881,7 @@ export const ApiUpdateOptionGroupDocs = () =>
 
 export const ApiDeleteOptionGroupDocs = () =>
   applyDecorators(
-    ApiTags('Menu (Admin)'),
+    ApiTags('Menu Option Groups (Admin)'),
     ApiBearerAuth(),
     ApiOperation({ summary: 'Delete an option group' }),
     ApiParam({
@@ -887,9 +895,13 @@ export const ApiDeleteOptionGroupDocs = () =>
     }),
   );
 
+// ----------------------------------------------------------------------------
+// 4D. MENU OPTIONS (ADMIN)
+// ----------------------------------------------------------------------------
+
 export const ApiCreateOptionDocs = () =>
   applyDecorators(
-    ApiTags('Menu (Admin)'),
+    ApiTags('Menu Options (Admin)'),
     ApiBearerAuth(),
     ApiOperation({ summary: 'Add an option to an option group' }),
     ApiParam({
@@ -919,7 +931,7 @@ export const ApiCreateOptionDocs = () =>
 
 export const ApiUpdateOptionDocs = () =>
   applyDecorators(
-    ApiTags('Menu (Admin)'),
+    ApiTags('Menu Options (Admin)'),
     ApiBearerAuth(),
     ApiOperation({
       summary: 'Update an option price, name, or availability',
@@ -950,7 +962,7 @@ export const ApiUpdateOptionDocs = () =>
 
 export const ApiDeleteOptionDocs = () =>
   applyDecorators(
-    ApiTags('Menu (Admin)'),
+    ApiTags('Menu Options (Admin)'),
     ApiBearerAuth(),
     ApiOperation({ summary: 'Delete an option' }),
     ApiParam({
