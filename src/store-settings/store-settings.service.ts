@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { UpdateStoreSettingsDto } from './dto/store-settings.dto';
 
 export interface DaySchedule {
   open: string;
@@ -11,7 +10,7 @@ export interface DaySchedule {
 
 export type WeeklyOpeningHours = Record<string, DaySchedule>;
 
-const DEFAULT_OPENING_HOURS: WeeklyOpeningHours = {
+export const DEFAULT_OPENING_HOURS: WeeklyOpeningHours = {
   mon: { open: '10:00', close: '22:00', closed: false },
   tue: { open: '10:00', close: '22:00', closed: false },
   wed: { open: '10:00', close: '22:00', closed: false },
@@ -73,41 +72,6 @@ export class StoreSettingsService {
     };
   }
 
-  async updateStoreSettings(dto: UpdateStoreSettingsDto) {
-    await this.prisma.storeSetting.upsert({
-      where: { id: 1 },
-      update: {
-        ...(dto.isOpenOverride !== undefined
-          ? { isOpenOverride: dto.isOpenOverride }
-          : {}),
-        ...(dto.minOrderAmount !== undefined
-          ? { minOrderAmount: dto.minOrderAmount }
-          : {}),
-        ...(dto.shopPhone !== undefined ? { shopPhone: dto.shopPhone } : {}),
-        ...(dto.shopAddress !== undefined
-          ? { shopAddress: dto.shopAddress }
-          : {}),
-        ...(dto.openingHours !== undefined
-          ? {
-              openingHours:
-                dto.openingHours as unknown as Prisma.InputJsonValue,
-            }
-          : {}),
-      },
-      create: {
-        id: 1,
-        isOpenOverride: dto.isOpenOverride ?? null,
-        minOrderAmount: dto.minOrderAmount ?? 0,
-        shopPhone: dto.shopPhone ?? null,
-        shopAddress: dto.shopAddress ?? null,
-        openingHours: (dto.openingHours ??
-          DEFAULT_OPENING_HOURS) as unknown as Prisma.InputJsonValue,
-      },
-    });
-
-    return this.getStoreStatus();
-  }
-
   private evaluateScheduleInLagos(openingHours: WeeklyOpeningHours) {
     const formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: 'Africa/Lagos',
@@ -149,4 +113,3 @@ export class StoreSettingsService {
     return `${hour12}:${minutes} ${suffix}`;
   }
 }
-
