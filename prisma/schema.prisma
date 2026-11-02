@@ -66,6 +66,7 @@ model User {
   addresses     Address[]
   orders        Order[]
   statusChanges OrderStatusHistory[]
+  cart          Cart?
 
   @@map("users")
 }
@@ -79,6 +80,7 @@ model DeliveryZone {
 
   addresses Address[]
   orders    Order[]
+  carts     Cart[]
 
   @@map("delivery_zones")
 }
@@ -126,6 +128,7 @@ model MenuItem {
   category     MenuCategory  @relation(fields: [categoryId], references: [id])
   optionGroups OptionGroup[]
   orderItems   OrderItem[]
+  cartItems    CartItem[]
 
   @@index([categoryId])
   @@map("menu_items")
@@ -174,8 +177,45 @@ model PromoCode {
   isActive  Boolean   @default(true)
 
   orders Order[]
+  carts  Cart[]
 
   @@map("promo_codes")
+}
+
+model Cart {
+  id          String    @id @default(uuid(7))
+  token       String    @unique @default(uuid(4))
+  userId      String?   @unique
+  orderType   OrderType @default(DELIVERY)
+  zoneId      String?
+  promoCodeId String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user  User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  zone  DeliveryZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  promo PromoCode?    @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
+  items CartItem[]
+
+  @@index([updatedAt])
+  @@map("carts")
+}
+
+model CartItem {
+  id                String   @id @default(uuid(7))
+  cartId            String
+  menuItemId        String
+  quantity          Int
+  notes             String?
+  selectedOptionIds String[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  cart     Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@index([cartId])
+  @@map("cart_items")
 }
 
 model Order {
