@@ -46,37 +46,22 @@ import {
 } from './dto/menu.dto';
 import { MenuService } from './menu.service';
 
-@ApiTags('Menu & Store Settings')
 @Controller()
 export class MenuController {
   constructor(private readonly menuService: MenuService) {}
 
   // ==========================================================================
-  // PUBLIC MENU & STORE STATUS ENDPOINTS
+  // STORE SETTINGS ENDPOINTS (Public & Admin)
   // ==========================================================================
 
-  @Get('menu')
-  @ApiGetPublicMenuDocs()
-  getPublicMenu() {
-    return this.menuService.getPublicMenu();
-  }
-
-  @Get('menu/items/:id')
-  @ApiGetMenuItemDocs()
-  getMenuItemById(@Param('id', ParseUUIDPipe) id: string) {
-    return this.menuService.getMenuItemById(id);
-  }
-
+  @ApiTags('Store Settings')
   @Get('store-settings')
   @ApiGetStoreSettingsDocs()
   getStoreStatus() {
     return this.menuService.getStoreStatus();
   }
 
-  // ==========================================================================
-  // ADMIN STORE SETTINGS ENDPOINT
-  // ==========================================================================
-
+  @ApiTags('Store Settings')
   @Patch('admin/store-settings')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -86,9 +71,28 @@ export class MenuController {
   }
 
   // ==========================================================================
+  // PUBLIC MENU ENDPOINTS
+  // ==========================================================================
+
+  @ApiTags('Menu')
+  @Get('menu')
+  @ApiGetPublicMenuDocs()
+  getPublicMenu() {
+    return this.menuService.getPublicMenu();
+  }
+
+  @ApiTags('Menu')
+  @Get('menu/items/:id')
+  @ApiGetMenuItemDocs()
+  getMenuItemById(@Param('id', ParseUUIDPipe) id: string) {
+    return this.menuService.getMenuItemById(id);
+  }
+
+  // ==========================================================================
   // ADMIN MENU OVERVIEW & CATEGORIES CRUD
   // ==========================================================================
 
+  @ApiTags('Menu')
   @Get('admin/menu')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -97,6 +101,7 @@ export class MenuController {
     return this.menuService.getAdminMenu();
   }
 
+  @ApiTags('Menu')
   @Post('admin/menu/categories')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -105,6 +110,7 @@ export class MenuController {
     return this.menuService.createCategory(dto);
   }
 
+  @ApiTags('Menu')
   @Patch('admin/menu/categories/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -116,6 +122,7 @@ export class MenuController {
     return this.menuService.updateCategory(id, dto);
   }
 
+  @ApiTags('Menu')
   @Delete('admin/menu/categories/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -128,6 +135,7 @@ export class MenuController {
   // ADMIN MENU ITEMS & AVAILABILITY TOGGLE
   // ==========================================================================
 
+  @ApiTags('Menu')
   @Post('admin/menu/items')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -136,6 +144,7 @@ export class MenuController {
     return this.menuService.createMenuItem(dto);
   }
 
+  @ApiTags('Menu')
   @Patch('admin/menu/items/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -147,6 +156,7 @@ export class MenuController {
     return this.menuService.updateMenuItem(id, dto);
   }
 
+  @ApiTags('Menu')
   @Patch('admin/menu/items/:id/availability')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -158,6 +168,7 @@ export class MenuController {
     return this.menuService.toggleItemAvailability(id, dto);
   }
 
+  @ApiTags('Menu')
   @Delete('admin/menu/items/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -170,6 +181,7 @@ export class MenuController {
   // ADMIN OPTION GROUPS & OPTIONS CRUD
   // ==========================================================================
 
+  @ApiTags('Menu')
   @Post('admin/menu/items/:itemId/option-groups')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -181,6 +193,7 @@ export class MenuController {
     return this.menuService.createOptionGroup(itemId, dto);
   }
 
+  @ApiTags('Menu')
   @Patch('admin/menu/option-groups/:groupId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -192,6 +205,7 @@ export class MenuController {
     return this.menuService.updateOptionGroup(groupId, dto);
   }
 
+  @ApiTags('Menu')
   @Delete('admin/menu/option-groups/:groupId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -200,6 +214,7 @@ export class MenuController {
     return this.menuService.deleteOptionGroup(groupId);
   }
 
+  @ApiTags('Menu')
   @Post('admin/menu/option-groups/:groupId/options')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -211,6 +226,7 @@ export class MenuController {
     return this.menuService.createOption(groupId, dto);
   }
 
+  @ApiTags('Menu')
   @Patch('admin/menu/options/:optionId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
@@ -222,6 +238,7 @@ export class MenuController {
     return this.menuService.updateOption(optionId, dto);
   }
 
+  @ApiTags('Menu')
   @Delete('admin/menu/options/:optionId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
