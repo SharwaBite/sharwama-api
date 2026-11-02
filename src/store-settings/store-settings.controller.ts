@@ -1,5 +1,4 @@
 import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard, Roles, RolesGuard } from '../common';
 import {
   ApiGetStoreSettingsDocs,
@@ -9,7 +8,6 @@ import { Role } from '../generated/prisma/client';
 import { UpdateStoreSettingsDto } from './dto/store-settings.dto';
 import { StoreSettingsService } from './store-settings.service';
 
-@ApiTags('Store Settings')
 @Controller()
 export class StoreSettingsController {
   constructor(
@@ -30,4 +28,3 @@ export class StoreSettingsController {
     return this.storeSettingsService.updateStoreSettings(dto);
   }
 }
-
