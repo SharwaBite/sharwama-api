@@ -20,8 +20,8 @@ import {
   UpdateMenuItemDto,
   UpdateOptionDto,
   UpdateOptionGroupDto,
-  UpdateStoreSettingsDto,
 } from '../../menu/dto/menu.dto';
+import { UpdateStoreSettingsDto } from '../../store-settings/dto/store-settings.dto';
 import {
   CreateDeliveryZoneDto,
   UpdateDeliveryZoneDto,
@@ -462,37 +462,20 @@ export const ApiDeleteZoneDocs = () =>
   );
 
 // ============================================================================
-// 4. MENU & STORE SETTINGS ENDPOINTS (/api/v1/menu & /api/v1/admin/menu)
+// 4. MENU ENDPOINTS (/api/v1/menu & /api/v1/admin/menu)
 // ============================================================================
 
 export const ApiGetPublicMenuDocs = () =>
   applyDecorators(
     ApiOperation({
       summary:
-        'Get public menu categories, items, options, and current store open status (cached 1m)',
+        'Get public menu categories, items, and options (cached for 1 minute)',
     }),
     ApiResponse({
       status: HttpStatus.OK,
-      description: 'Public menu with store hours/open status and categories',
+      description: 'Public menu categories with items and option groups',
       schema: {
         example: {
-          store: {
-            isOpen: true,
-            isOpenOverride: null,
-            minOrderAmount: 300000,
-            shopPhone: '08030000000',
-            shopAddress: '14 Admiralty Way, Lekki Phase 1, Lagos',
-            closedMessage: null,
-            openingHours: {
-              mon: { open: '10:00', close: '22:00', closed: false },
-              tue: { open: '10:00', close: '22:00', closed: false },
-              wed: { open: '10:00', close: '22:00', closed: false },
-              thu: { open: '10:00', close: '22:00', closed: false },
-              fri: { open: '10:00', close: '23:00', closed: false },
-              sat: { open: '10:00', close: '23:00', closed: false },
-              sun: { open: '12:00', close: '22:00', closed: false },
-            },
-          },
           categories: [
             {
               id: '0195e4a0-0000-7000-8000-000000000100',
@@ -569,85 +552,6 @@ export const ApiGetMenuItemDocs = () =>
           message: 'Menu item not found',
         },
       },
-    }),
-  );
-
-export const ApiGetStoreSettingsDocs = () =>
-  applyDecorators(
-    ApiOperation({
-      summary:
-        'Get current store open/closed status, hours, minimum order, and contact details (Public)',
-    }),
-    ApiResponse({
-      status: HttpStatus.OK,
-      description: 'Store settings and evaluated open status',
-      schema: {
-        example: {
-          isOpen: true,
-          isOpenOverride: null,
-          minOrderAmount: 300000,
-          shopPhone: '08030000000',
-          shopAddress: '14 Admiralty Way, Lekki Phase 1, Lagos',
-          closedMessage: null,
-          openingHours: {
-            mon: { open: '10:00', close: '22:00', closed: false },
-            tue: { open: '10:00', close: '22:00', closed: false },
-            wed: { open: '10:00', close: '22:00', closed: false },
-            thu: { open: '10:00', close: '22:00', closed: false },
-            fri: { open: '10:00', close: '23:00', closed: false },
-            sat: { open: '10:00', close: '23:00', closed: false },
-            sun: { open: '12:00', close: '22:00', closed: false },
-          },
-        },
-      },
-    }),
-  );
-
-export const ApiUpdateStoreSettingsDocs = () =>
-  applyDecorators(
-    ApiBearerAuth(),
-    ApiOperation({
-      summary:
-        'Update store opening hours, manual Open/Closed override, or minimum order (Admin)',
-    }),
-    ApiBody({
-      type: UpdateStoreSettingsDto,
-      examples: {
-        updateAll: {
-          summary: 'Configure shop details, minimum order, and weekly schedule',
-          value: {
-            isOpenOverride: null,
-            minOrderAmount: 300000,
-            shopPhone: '08030000000',
-            shopAddress: '14 Admiralty Way, Lekki Phase 1, Lagos',
-            openingHours: {
-              mon: { open: '10:00', close: '22:00', closed: false },
-              tue: { open: '10:00', close: '22:00', closed: false },
-              wed: { open: '10:00', close: '22:00', closed: false },
-              thu: { open: '10:00', close: '22:00', closed: false },
-              fri: { open: '10:00', close: '23:00', closed: false },
-              sat: { open: '10:00', close: '23:00', closed: false },
-              sun: { open: '12:00', close: '22:00', closed: false },
-            },
-          },
-        },
-        forceClose: {
-          summary: 'Manually close the shop immediately',
-          value: {
-            isOpenOverride: false,
-          },
-        },
-        forceOpen: {
-          summary: 'Manually force the shop open',
-          value: {
-            isOpenOverride: true,
-          },
-        },
-      },
-    }),
-    ApiResponse({
-      status: HttpStatus.OK,
-      description: 'Updated store settings and evaluated open status',
     }),
   );
 
@@ -1033,4 +937,85 @@ export const ApiDeleteOptionDocs = () =>
     }),
   );
 
+// ============================================================================
+// 5. STORE SETTINGS ENDPOINTS (/api/v1/store-settings & /api/v1/admin/store-settings)
+// ============================================================================
 
+export const ApiGetStoreSettingsDocs = () =>
+  applyDecorators(
+    ApiOperation({
+      summary:
+        'Get current store open/closed status, hours, minimum order, and contact details (Public)',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Store settings and evaluated open status',
+      schema: {
+        example: {
+          isOpen: true,
+          isOpenOverride: null,
+          minOrderAmount: 300000,
+          shopPhone: '08030000000',
+          shopAddress: '14 Admiralty Way, Lekki Phase 1, Lagos',
+          closedMessage: null,
+          openingHours: {
+            mon: { open: '10:00', close: '22:00', closed: false },
+            tue: { open: '10:00', close: '22:00', closed: false },
+            wed: { open: '10:00', close: '22:00', closed: false },
+            thu: { open: '10:00', close: '22:00', closed: false },
+            fri: { open: '10:00', close: '23:00', closed: false },
+            sat: { open: '10:00', close: '23:00', closed: false },
+            sun: { open: '12:00', close: '22:00', closed: false },
+          },
+        },
+      },
+    }),
+  );
+
+export const ApiUpdateStoreSettingsDocs = () =>
+  applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary:
+        'Update store opening hours, manual Open/Closed override, or minimum order (Admin)',
+    }),
+    ApiBody({
+      type: UpdateStoreSettingsDto,
+      examples: {
+        updateAll: {
+          summary: 'Configure shop details, minimum order, and weekly schedule',
+          value: {
+            isOpenOverride: null,
+            minOrderAmount: 300000,
+            shopPhone: '08030000000',
+            shopAddress: '14 Admiralty Way, Lekki Phase 1, Lagos',
+            openingHours: {
+              mon: { open: '10:00', close: '22:00', closed: false },
+              tue: { open: '10:00', close: '22:00', closed: false },
+              wed: { open: '10:00', close: '22:00', closed: false },
+              thu: { open: '10:00', close: '22:00', closed: false },
+              fri: { open: '10:00', close: '23:00', closed: false },
+              sat: { open: '10:00', close: '23:00', closed: false },
+              sun: { open: '12:00', close: '22:00', closed: false },
+            },
+          },
+        },
+        forceClose: {
+          summary: 'Manually close the shop immediately',
+          value: {
+            isOpenOverride: false,
+          },
+        },
+        forceOpen: {
+          summary: 'Manually force the shop open',
+          value: {
+            isOpenOverride: true,
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Updated store settings and evaluated open status',
+    }),
+  );
