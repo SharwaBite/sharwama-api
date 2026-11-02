@@ -17,6 +17,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { CurrentUser, JwtAuthGuard } from '../common';
 import { AuthService } from './auth.service';
+import { GoogleLoginDto } from './dto/google-login.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -121,6 +122,55 @@ export class AuthController {
   })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Post('google')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Log in or sign up with a Google ID token' })
+  @ApiBody({
+    type: GoogleLoginDto,
+    examples: {
+      googleLogin: {
+        summary: 'Google login payload',
+        value: {
+          idToken: 'eyJhbGciOiJSUzI1NiIsImtpZCI6IjEifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJlbWFpbCI6ImFkYUBzaGFyd2FtYS5uZyIsIm5hbWUiOiJBZGEgT2JpIn0.exampleSignature',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Authenticated with Google successfully',
+    schema: {
+      example: {
+        user: {
+          id: '0195e4a0-0000-7000-8000-000000000001',
+          name: 'Ada Obi',
+          phone: null,
+          email: 'ada@sharwama.ng',
+          avatarUrl: 'https://lh3.googleusercontent.com/a/default-user',
+          emailVerified: true,
+          role: 'CUSTOMER',
+          createdAt: '2026-10-30T14:00:00.000Z',
+        },
+        accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Invalid Google ID token',
+    schema: {
+      example: {
+        code: 'INVALID_GOOGLE_TOKEN',
+        message: 'Invalid or expired Google ID token',
+      },
+    },
+  })
+  googleLogin(@Body() dto: GoogleLoginDto) {
+    return this.authService.googleLogin(dto.idToken);
   }
 
   @Post('refresh')

@@ -1,6 +1,6 @@
 import {
-  BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { OAuth2Client } from 'google-auth-library';
 import {
   AuthenticatedUser,
   JwtPayload,
@@ -21,6 +22,8 @@ const BCRYPT_ROUNDS = 10;
 
 @Injectable()
 export class AuthService {
+  private readonly google = new OAuth2Client();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
@@ -82,30 +85,16 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const rawIdentifier = dto.phone ?? dto.email ?? dto.identifier;
-    if (!rawIdentifier) {
-      throw new BadRequestException({
-        code: 'MISSING_IDENTIFIER',
-        message: 'Phone number or email is required',
-      });
-    }
+    const normalizedEmail = dto.email.trim().toLowerCase();
 
-    const isEmail = rawIdentifier.includes('@');
-    const normalizedPhone = rawIdentifier.replace(/[\s-]+/g, '').trim();
-    const normalizedEmail = rawIdentifier.trim().toLowerCase();
-
-    const user = await this.prisma.user.findFirst({
-      where: isEmail
-        ? { email: normalizedEmail }
-        : {
-            OR: [{ phone: normalizedPhone }, { email: normalizedEmail }],
-          },
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
     });
 
-    if (!user) {
+    if (!user || !user.passwordHash || !(await bcrypt.compare(dto.password, user?.passwordHash))) {
       throw new UnauthorizedException({
-        code: 'INVALID_CREDENTIALS',
-        message: 'Invalid phone/email or password',
+        code: 'INVALID_CREDENTIALS',  
+        message: 'Invalid email or password',
       });
     }
 
@@ -117,7 +106,7 @@ export class AuthService {
     if (!isPasswordValid) {
       throw new UnauthorizedException({
         code: 'INVALID_CREDENTIALS',
-        message: 'Invalid phone/email or password',
+        message: 'Invalid email or password',
       });
     }
 
@@ -134,6 +123,92 @@ export class AuthService {
     return {
       user: {
         ...authUser,
+        createdAt: user.createdAt,
+      },
+      ...tokens,
+    };
+  }
+
+  async googleLogin(idToken: string) {
+    const ticket = await this.google
+      .verifyIdToken({
+        idToken,
+        audience: this.config.getOrThrow<string>('GOOGLE_CLIENT_ID'),
+      })
+      .catch(() => {
+        throw new UnauthorizedException({
+          code: 'INVALID_GOOGLE_TOKEN',
+          message: 'Invalid Google token',
+        });
+      });
+
+    const p = ticket.getPayload();
+    if (!p?.sub || !p.email || !p.email_verified) {
+      throw new UnauthorizedException({
+        code: 'UNVERIFIED_GOOGLE_EMAIL',
+        message: 'Google account email is not verified',
+      });
+    }
+
+    let user = await this.prisma.user.findUnique({
+      where: { googleId: p.sub },
+    });
+
+    if (!user) {
+      const existing = await this.prisma.user.findUnique({
+        where: { email: p.email },
+      });
+
+      if (existing?.role === 'ADMIN') {
+        throw new ForbiddenException({
+          code: 'ADMIN_GOOGLE_LOGIN_FORBIDDEN',
+          message: 'Use the admin sign in',
+        });
+      }
+
+      user = existing
+        ? await this.prisma.user.update({
+            where: { id: existing.id },
+            data: {
+              googleId: p.sub,
+              emailVerified: true,
+              avatarUrl: existing.avatarUrl ?? p.picture,
+            },
+          })
+        : await this.prisma.user.create({
+            data: {
+              name: p.name ?? p.email.split('@')[0],
+              email: p.email,
+              googleId: p.sub,
+              emailVerified: true,
+              avatarUrl: p.picture,
+              role: 'CUSTOMER',
+            },
+          });
+    }
+
+    if (user.role === 'ADMIN') {
+      throw new ForbiddenException({
+        code: 'ADMIN_GOOGLE_LOGIN_FORBIDDEN',
+        message: 'Use the admin sign in',
+      });
+    }
+
+    const authUser: AuthenticatedUser = {
+      id: user.id,
+      name: user.name,
+      phone: user.phone,
+      email: user.email,
+      role: user.role,
+    };
+
+    const tokens = await this.issueTokens(authUser);
+
+    return {
+      user: {
+        ...authUser,
+        avatarUrl: user.avatarUrl,
+        emailVerified: user.emailVerified,
         createdAt: user.createdAt,
       },
       ...tokens,
@@ -192,6 +267,8 @@ export class AuthService {
         name: true,
         phone: true,
         email: true,
+        avatarUrl: true,
+        emailVerified: true,
         role: true,
         createdAt: true,
         updatedAt: true,
