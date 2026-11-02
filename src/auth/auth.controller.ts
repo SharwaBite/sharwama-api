@@ -78,19 +78,12 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @ApiOperation({ summary: 'Log in with phone or email and password' })
+  @ApiOperation({ summary: 'Log in with email and password' })
   @ApiBody({
     type: LoginDto,
     examples: {
-      byPhone: {
-        summary: 'Login with phone number',
-        value: {
-          phone: '08031234567',
-          password: 'Password123!',
-        },
-      },
-      byEmail: {
-        summary: 'Login with email address',
+      login: {
+        summary: 'Login with email and password',
         value: {
           email: 'ada@sharwama.ng',
           password: 'Password123!',
@@ -122,7 +115,7 @@ export class AuthController {
     schema: {
       example: {
         code: 'INVALID_CREDENTIALS',
-        message: 'Invalid phone/email or password',
+        message: 'Invalid email or password',
       },
     },
   })
