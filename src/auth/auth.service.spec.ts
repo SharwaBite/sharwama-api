@@ -86,18 +86,18 @@ describe('AuthService', () => {
 
   it('logs in a user with valid credentials', async () => {
     const passwordHash = await bcrypt.hash('password123', 4);
-    prisma.user.findFirst.mockResolvedValue({
+    prisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
       name: 'Ada Obi',
       phone: '08030000000',
-      email: null,
+      email: 'ada@example.com',
       passwordHash,
       role: Role.CUSTOMER,
       createdAt: new Date(),
     });
 
     const result = await service.login({
-      phone: '08030000000',
+      email: 'ada@example.com',
       password: 'password123',
     });
 
@@ -107,11 +107,11 @@ describe('AuthService', () => {
 
   it('rejects invalid password on login', async () => {
     const passwordHash = await bcrypt.hash('password123', 4);
-    prisma.user.findFirst.mockResolvedValue({
+    prisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
       name: 'Ada Obi',
       phone: '08030000000',
-      email: null,
+      email: 'ada@example.com',
       passwordHash,
       role: Role.CUSTOMER,
       createdAt: new Date(),
@@ -119,7 +119,7 @@ describe('AuthService', () => {
 
     await expect(
       service.login({
-        phone: '08030000000',
+        email: 'ada@example.com',
         password: 'wrong-password',
       }),
     ).rejects.toThrow(UnauthorizedException);
