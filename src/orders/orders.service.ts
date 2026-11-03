@@ -1,5 +1,7 @@
 import {
+  BadGatewayException,
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -20,13 +22,26 @@ import { assertTransition, OrderActor } from './order-status';
 
 const ORDER_INCLUDE = {
   items: true,
-  payments: true,
+  payments: {
+    orderBy: { createdAt: 'desc' as const },
+  },
   history: {
     orderBy: { createdAt: 'desc' as const },
   },
   zone: true,
   promo: true,
 };
+
+const ORDER_LIFETIME_MS = 30 * 60 * 1000;
+
+type OrderWithRelations = Prisma.OrderGetPayload<{
+  include: typeof ORDER_INCLUDE;
+}>;
+
+export interface OrderRequester {
+  userId?: string;
+  cartToken?: string;
+}
 
 @Injectable()
 export class OrdersService {
@@ -42,162 +57,154 @@ export class OrdersService {
    * POST /api/v1/orders
    * Snapshots a server-validated cart into an order, empties the cart,
    * creates the Bachs payment session, and returns the order and checkout URL.
+   *
+   * Retrying with the same Idempotency-Key returns the same order. If the
+   * first attempt created the order but failed to start the payment, the
+   * retry tries the Bachs session again (Bachs dedupes on checkout-${orderId}).
    */
   async createOrder(
     dto: CreateOrderDto,
-    idempotencyKey?: string,
-    actor?: { userId?: string; cartToken?: string },
+    idempotencyKey: string,
+    requester: OrderRequester,
   ) {
-    // 1. Check idempotency key first
-    if (idempotencyKey) {
-      const existing = await this.prisma.order.findUnique({
-        where: { idempotencyKey },
-        include: ORDER_INCLUDE,
-      });
-
-      if (existing) {
-        const latestPayment = existing.payments[0];
-        return {
-          order: existing,
-          payment: latestPayment
-            ? {
-                paymentId: latestPayment.id,
-                checkoutId: latestPayment.providerReference,
-                checkoutUrl: latestPayment.checkoutUrl,
-              }
-            : null,
-          idempotentReplay: true,
-        };
-      }
+    // 1. Idempotent replay
+    const existing = await this.prisma.order.findUnique({
+      where: { idempotencyKey },
+      include: ORDER_INCLUDE,
+    });
+    if (existing) {
+      return this.replayOrder(existing, requester);
     }
 
-    // 2. Fetch and price the cart
+    // 2. Cheap ownership check before doing any pricing work
+    await this.assertCartOwnership(dto.cartId, requester);
+
+    // 3. Re-price and re-validate the cart on the server
     const cart = await this.cartService.formatAndPriceCart(dto.cartId);
 
     if (cart.items.length === 0) {
       throw new BadRequestException('Cannot checkout an empty cart');
     }
 
-    // Cart ownership check
-    if (actor?.userId && cart.userId && cart.userId !== actor.userId) {
-      throw new ForbiddenException('You do not have access to this cart');
-    }
-
     if (!cart.canCheckout) {
-      const issues = cart.warnings.length > 0
-        ? cart.warnings.join('; ')
-        : 'Cart is not ready for checkout';
+      const issues =
+        cart.warnings.length > 0
+          ? cart.warnings.join('; ')
+          : 'Cart is not ready for checkout';
       throw new BadRequestException(`Cannot place order: ${issues}`);
     }
 
-    // Address verification for DELIVERY
-    if (cart.orderType === OrderType.DELIVERY) {
-      if (!dto.address?.street?.trim()) {
-        throw new BadRequestException(
-          'Delivery street address is required for delivery orders',
-        );
-      }
+    if (cart.orderType === OrderType.DELIVERY && !dto.address?.street?.trim()) {
+      throw new BadRequestException(
+        'Delivery street address is required for delivery orders',
+      );
     }
 
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes lifetime
+    const isDelivery = cart.orderType === OrderType.DELIVERY;
+    const expiresAt = new Date(Date.now() + ORDER_LIFETIME_MS);
 
-    // 3. Snapshot cart into order within a transaction
-    const order = await this.prisma.$transaction(async (tx) => {
-      const createdOrder = await tx.order.create({
-        data: {
-          idempotencyKey: idempotencyKey ?? null,
-          userId: actor?.userId ?? cart.userId ?? null,
-          type: cart.orderType,
-          status: OrderStatus.PENDING_PAYMENT,
+    // 4. Snapshot the cart into an order and empty the cart atomically
+    let order: OrderWithRelations;
+    try {
+      order = await this.prisma.$transaction(async (tx) => {
+        const createdOrder = await tx.order.create({
+          data: {
+            idempotencyKey,
+            userId: requester.userId ?? cart.userId ?? null,
+            type: cart.orderType,
+            status: OrderStatus.PENDING_PAYMENT,
 
-          customerName: dto.customer.name,
-          customerPhone: dto.customer.phone,
-          customerEmail: dto.customer.email ?? null,
-          notes: dto.notes?.trim() || null,
+            customerName: dto.customer.name,
+            customerPhone: dto.customer.phone,
+            customerEmail: dto.customer.email ?? null,
+            notes: dto.notes?.trim() || null,
 
-          subtotal: cart.subtotal,
-          deliveryFee: cart.deliveryFee,
-          discount: cart.discount,
-          total: cart.total,
+            subtotal: cart.subtotal,
+            deliveryFee: cart.deliveryFee,
+            discount: cart.discount,
+            total: cart.total,
 
-          zoneId: cart.zoneId,
-          deliveryZoneName: cart.deliveryZone?.name ?? null,
-          deliveryStreet:
-            cart.orderType === OrderType.DELIVERY
-              ? dto.address?.street?.trim() ?? null
+            zoneId: isDelivery ? cart.zoneId : null,
+            deliveryZoneName: isDelivery
+              ? (cart.deliveryZone?.name ?? null)
               : null,
-          deliveryLandmark:
-            cart.orderType === OrderType.DELIVERY
-              ? dto.address?.landmark?.trim() ?? null
+            deliveryStreet: isDelivery
+              ? (dto.address?.street?.trim() ?? null)
+              : null,
+            deliveryLandmark: isDelivery
+              ? dto.address?.landmark?.trim() || null
               : null,
 
-          promoCodeId: cart.promo?.id ?? null,
-          promoCode: cart.promo?.code ?? null,
+            promoCodeId: cart.promo?.valid ? cart.promo.id : null,
+            promoCode: cart.promo?.valid ? cart.promo.code : null,
 
-          expiresAt,
+            expiresAt,
 
-          items: {
-            create: cart.items.map((item) => ({
-              menuItemId: item.menuItemId,
-              name: item.name,
-              unitPrice: item.unitPrice,
-              quantity: item.quantity,
-              lineTotal: item.lineTotal,
-              selectedOptions:
-                item.selectedOptions as unknown as Prisma.InputJsonValue,
-              notes: item.notes,
-            })),
-          },
+            items: {
+              create: cart.items.map((item) => ({
+                menuItemId: item.menuItemId,
+                name: item.name,
+                unitPrice: item.unitPrice,
+                quantity: item.quantity,
+                lineTotal: item.lineTotal,
+                selectedOptions:
+                  item.selectedOptions as unknown as Prisma.InputJsonValue,
+                notes: item.notes,
+              })),
+            },
 
-          history: {
-            create: {
-              toStatus: OrderStatus.PENDING_PAYMENT,
-              source: 'customer',
-              note: 'Order placed by customer',
+            history: {
+              create: {
+                toStatus: OrderStatus.PENDING_PAYMENT,
+                source: 'customer',
+                changedById: requester.userId ?? null,
+                note: 'Order placed by customer',
+              },
             },
           },
-        },
-        include: ORDER_INCLUDE,
+          include: ORDER_INCLUDE,
+        });
+
+        await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+        await tx.cart.update({
+          where: { id: cart.id },
+          data: { promoCodeId: null },
+        });
+
+        return createdOrder;
       });
+    } catch (error) {
+      // Two identical requests raced past the replay check: the unique
+      // idempotencyKey rejected the second insert, so replay the winner.
+      if (this.isUniqueViolation(error)) {
+        const winner = await this.prisma.order.findUnique({
+          where: { idempotencyKey },
+          include: ORDER_INCLUDE,
+        });
+        if (winner) {
+          return this.replayOrder(winner, requester);
+        }
+      }
+      throw error;
+    }
 
-      // Clear the cart items & promo so the cart is emptied upon checkout
-      await tx.cartItem.deleteMany({
-        where: { cartId: cart.id },
-      });
-
-      await tx.cart.update({
-        where: { id: cart.id },
-        data: { promoCodeId: null },
-      });
-
-      return createdOrder;
-    });
-
-    // 4. Create the Bachs payment session
-    const paymentSession = await this.paymentsService.createSessionForOrder({
-      id: order.id,
-      orderNumber: order.orderNumber,
-      publicToken: order.publicToken,
-      total: order.total,
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
-      customerEmail: order.customerEmail,
-    });
+    // 5. Start the Bachs payment session
+    const payment = await this.ensurePaymentSession(order);
 
     return {
       order,
-      payment: paymentSession,
+      payment,
       idempotentReplay: false,
     };
   }
 
   /**
    * GET /api/v1/orders/:idOrToken
-   * Look up order by ID or public tracking token.
+   * Look up an order by ID or public tracking token.
    */
   async getOrder(
     idOrToken: string,
-    actor?: { userId?: string; role?: string; token?: string },
+    access?: { userId?: string; role?: string; token?: string },
   ) {
     const order = await this.prisma.order.findFirst({
       where: {
@@ -210,33 +217,24 @@ export class OrdersService {
       throw new NotFoundException(`Order "${idOrToken}" not found`);
     }
 
-    // Access check:
-    // 1. Admin can access any order
-    if (actor?.role === 'ADMIN') {
-      return order;
+    const canView =
+      access?.role === 'ADMIN' ||
+      idOrToken === order.publicToken ||
+      (access?.token !== undefined && access.token === order.publicToken) ||
+      (access?.userId !== undefined && order.userId === access.userId);
+
+    if (!canView) {
+      throw new ForbiddenException(
+        'You do not have permission to view this order',
+      );
     }
 
-    // 2. Guest with public token matching order
-    if (actor?.token && actor.token === order.publicToken) {
-      return order;
-    }
-
-    // 3. Directly fetched by publicToken
-    if (idOrToken === order.publicToken) {
-      return order;
-    }
-
-    // 4. Authenticated user matching order.userId
-    if (actor?.userId && order.userId === actor.userId) {
-      return order;
-    }
-
-    throw new ForbiddenException('You do not have permission to view this order');
+    return order;
   }
 
   /**
    * POST /api/v1/orders/:id/cancel
-   * Cancel an order before preparation (customer or admin).
+   * Cancel an order (customers only before PREPARING; staff any time before delivery).
    */
   async cancelOrder(
     id: string,
@@ -254,10 +252,10 @@ export class OrdersService {
       throw new NotFoundException(`Order "${id}" not found`);
     }
 
-    // Customer ownership verification
     if (actor === 'CUSTOMER') {
-      const isOwnerUser = actorUserId && order.userId === actorUserId;
-      const isOwnerGuest = guestToken && order.publicToken === guestToken;
+      const isOwnerUser = Boolean(actorUserId) && order.userId === actorUserId;
+      const isOwnerGuest =
+        Boolean(guestToken) && order.publicToken === guestToken;
 
       if (!isOwnerUser && !isOwnerGuest) {
         throw new ForbiddenException(
@@ -266,24 +264,29 @@ export class OrdersService {
       }
     }
 
-    const hasSucceededPayment = order.payments.some(
-      (p) => p.status === PaymentStatus.SUCCEEDED,
-    );
-
     assertTransition(order.status, OrderStatus.CANCELLED, actor, {
       type: order.type,
       hasRider: Boolean(order.riderName && order.riderPhone),
-      isPaid: hasSucceededPayment,
+      isPaid: order.payments.some((p) => p.status === PaymentStatus.SUCCEEDED),
     });
 
-    const note = dto.reason?.trim() || (actor === 'ADMIN' ? 'Cancelled by staff' : 'Cancelled by customer');
+    const note =
+      dto.reason?.trim() ||
+      (actor === 'ADMIN' ? 'Cancelled by staff' : 'Cancelled by customer');
 
     return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.order.update({
-        where: { id: order.id },
+      // Conditional update: only cancel if nobody else (webhook, expiry job,
+      // staff) changed the status since we read it.
+      const { count } = await tx.order.updateMany({
+        where: { id: order.id, status: order.status },
         data: { status: OrderStatus.CANCELLED },
-        include: ORDER_INCLUDE,
       });
+
+      if (count === 0) {
+        throw new ConflictException(
+          'Order status changed while cancelling. Refresh and try again.',
+        );
+      }
 
       await tx.orderStatusHistory.create({
         data: {
@@ -296,12 +299,16 @@ export class OrdersService {
         },
       });
 
-      return updated;
+      return tx.order.findUniqueOrThrow({
+        where: { id: order.id },
+        include: ORDER_INCLUDE,
+      });
     });
   }
 
   /**
-   * List customer's own order history.
+   * GET /api/v1/orders/me
+   * Order history for the logged-in customer.
    */
   async findMyOrders(userId: string) {
     return this.prisma.order.findMany({
@@ -312,46 +319,164 @@ export class OrdersService {
   }
 
   /**
-   * Scheduled cron job: expires unpaid orders older than 30 minutes.
+   * Scheduled job: expires orders still unpaid 30 minutes after placement.
    */
   @Cron(CronExpression.EVERY_MINUTE)
   async expireUnpaidOrders() {
-    const now = new Date();
-
-    const expiredOrders = await this.prisma.order.findMany({
+    const dueOrders = await this.prisma.order.findMany({
       where: {
         status: OrderStatus.PENDING_PAYMENT,
-        expiresAt: { lte: now },
+        expiresAt: { lte: new Date() },
       },
-      select: { id: true, status: true },
+      select: { id: true },
       take: 50,
     });
 
-    for (const order of expiredOrders) {
+    for (const { id } of dueOrders) {
       try {
-        await this.prisma.$transaction(async (tx) => {
-          await tx.order.update({
-            where: { id: order.id },
+        const expired = await this.prisma.$transaction(async (tx) => {
+          // Conditional update so a webhook that just marked the order PAID
+          // is never overwritten with EXPIRED.
+          const { count } = await tx.order.updateMany({
+            where: { id, status: OrderStatus.PENDING_PAYMENT },
             data: { status: OrderStatus.EXPIRED },
           });
 
+          if (count === 0) {
+            return false;
+          }
+
           await tx.orderStatusHistory.create({
             data: {
-              orderId: order.id,
+              orderId: id,
               fromStatus: OrderStatus.PENDING_PAYMENT,
               toStatus: OrderStatus.EXPIRED,
               source: 'expiry_job',
               note: 'Order expired: unpaid after 30 minutes',
             },
           });
+
+          return true;
         });
 
-        this.logger.log(`Expired unpaid order ${order.id}`);
+        if (expired) {
+          this.logger.log(`Expired unpaid order ${id}`);
+        }
       } catch (err) {
         this.logger.error(
-          `Failed to expire order ${order.id}: ${err instanceof Error ? err.message : String(err)}`,
+          `Failed to expire order ${id}: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
     }
+  }
+
+  /**
+   * Returns an existing order for a repeated Idempotency-Key, retrying the
+   * payment session if the first attempt never got one.
+   */
+  private async replayOrder(
+    order: OrderWithRelations,
+    requester: OrderRequester,
+  ) {
+    // A logged-in user's key must not reveal someone else's order.
+    if (order.userId && order.userId !== requester.userId) {
+      throw new ConflictException(
+        'Idempotency-Key has already been used for a different order',
+      );
+    }
+
+    const payment = await this.ensurePaymentSession(order);
+
+    return {
+      order,
+      payment,
+      idempotentReplay: true,
+    };
+  }
+
+  /**
+   * Reuses the order's existing checkout session, or creates one if the
+   * order is still payable and has none yet.
+   */
+  private async ensurePaymentSession(order: OrderWithRelations) {
+    const existingPayment = order.payments.find((p) => p.checkoutUrl);
+    if (existingPayment) {
+      return {
+        paymentId: existingPayment.id,
+        checkoutId: existingPayment.providerReference,
+        checkoutUrl: existingPayment.checkoutUrl,
+        status: existingPayment.status,
+      };
+    }
+
+    const isPayable =
+      order.status === OrderStatus.PENDING_PAYMENT &&
+      order.expiresAt.getTime() > Date.now();
+
+    if (!isPayable) {
+      return null;
+    }
+
+    try {
+      const session = await this.paymentsService.createSessionForOrder({
+        id: order.id,
+        orderNumber: order.orderNumber,
+        publicToken: order.publicToken,
+        total: order.total,
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        customerEmail: order.customerEmail,
+      });
+
+      return {
+        paymentId: session.paymentId,
+        checkoutId: session.checkoutId,
+        checkoutUrl: session.checkoutUrl,
+        status: PaymentStatus.PENDING,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Payment session failed for order ${order.id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new BadGatewayException({
+        code: 'PAYMENT_INIT_FAILED',
+        message:
+          'Your order was saved but payment could not be started. Retry the same request with the same Idempotency-Key.',
+        details: {
+          orderId: order.id,
+          publicToken: order.publicToken,
+        },
+      });
+    }
+  }
+
+  /**
+   * Logged-in users may only check out their own cart; guests must present
+   * the cart token (X-Cart-Token header or cart_token cookie) of an unclaimed cart.
+   * Responds 404 rather than 403 so cart IDs can't be probed.
+   */
+  private async assertCartOwnership(cartId: string, requester: OrderRequester) {
+    const cart = await this.prisma.cart.findUnique({
+      where: { id: cartId },
+      select: { userId: true, token: true },
+    });
+
+    const isOwner = requester.userId
+      ? cart?.userId === requester.userId
+      : Boolean(requester.cartToken) &&
+        cart?.userId === null &&
+        cart.token === requester.cartToken;
+
+    if (!cart || !isOwner) {
+      throw new NotFoundException('Cart not found');
+    }
+  }
+
+  private isUniqueViolation(error: unknown): boolean {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      (error as { code?: unknown }).code === 'P2002'
+    );
   }
 }
