@@ -5,6 +5,7 @@ import {
   ApiHeader,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -30,6 +31,7 @@ import {
   UpdateOptionDto,
   UpdateOptionGroupDto,
 } from '../../menu/dto/menu.dto';
+import { CancelOrderDto, CreateOrderDto } from '../../orders/dto/order.dto';
 import {
   CreatePromoDto,
   UpdatePromoDto,
@@ -1602,4 +1604,325 @@ export const ApiMergeCartDocs = () =>
       },
     }),
   );
+
+// ============================================================================
+// 8. ORDERS ENDPOINTS (/api/v1/orders)
+// ============================================================================
+
+const SAMPLE_ORDER_OBJECT = {
+  id: '0195f1e2-e001-7000-8000-000000000701',
+  orderNumber: 1001,
+  publicToken: '4a89f210-91c4-4e1a-b833-7c5128a9f001',
+  idempotencyKey: 'checkout-order-20261103-001',
+  userId: null,
+  type: 'DELIVERY',
+  status: 'PENDING_PAYMENT',
+  customerName: 'Ada Obi',
+  customerPhone: '08031234567',
+  customerEmail: 'ada@sharwama.ng',
+  notes: 'Please call when at the gate',
+  subtotal: 860000,
+  deliveryFee: 150000,
+  discount: 86000,
+  total: 924000,
+  zoneId: '0195f1e2-a1b2-7000-8000-000000000001',
+  deliveryZoneName: 'Lekki Phase 1 & Environs',
+  deliveryStreet: '14 Admiralty Way, Lekki Phase 1',
+  deliveryLandmark: 'Opposite Ebeano Supermarket',
+  promoCodeId: '0195f1e2-c001-7000-8000-000000000501',
+  promoCode: 'WELCOME10',
+  riderName: null,
+  riderPhone: null,
+  placedAt: '2026-11-03T18:00:00.000Z',
+  expiresAt: '2026-11-03T18:30:00.000Z',
+  paidAt: null,
+  updatedAt: '2026-11-03T18:00:00.000Z',
+  items: [
+    {
+      id: '0195f1e2-e002-7000-8000-000000000702',
+      orderId: '0195f1e2-e001-7000-8000-000000000701',
+      menuItemId: '0195f1e2-b011-7000-8000-000000000201',
+      name: 'Classic Chicken Shawarma',
+      unitPrice: 430000,
+      quantity: 2,
+      lineTotal: 860000,
+      selectedOptions: [
+        {
+          id: '0195f1e2-b011-7000-8000-000000000401',
+          name: 'Double Sausage',
+          groupId: '0195f1e2-b011-7000-8000-000000000301',
+          groupName: 'Sausage Selection',
+          priceDelta: 50000,
+          isAvailable: true,
+        },
+        {
+          id: '0195f1e2-b011-7000-8000-000000000402',
+          name: 'Extra Cheese',
+          groupId: '0195f1e2-b011-7000-8000-000000000302',
+          groupName: 'Add-Ons',
+          priceDelta: 30000,
+          isAvailable: true,
+        },
+      ],
+      notes: 'Extra spicy, light mayo please',
+    },
+  ],
+  payments: [
+    {
+      id: '0195f1e2-f001-7000-8000-000000000801',
+      orderId: '0195f1e2-e001-7000-8000-000000000701',
+      provider: 'bachs',
+      providerReference: 'chk_2N3o4P5q6R7s8T9u',
+      checkoutUrl: 'https://checkout.bachs.io/c/V8xQ2mZpLj9RfTa',
+      status: 'PENDING',
+      amount: 924000,
+      paidAmount: null,
+      currency: 'NGN',
+      needsReview: false,
+      reviewReason: null,
+      paidAt: null,
+      createdAt: '2026-11-03T18:00:01.000Z',
+    },
+  ],
+  history: [
+    {
+      id: '0195f1e2-e003-7000-8000-000000000703',
+      orderId: '0195f1e2-e001-7000-8000-000000000701',
+      fromStatus: null,
+      toStatus: 'PENDING_PAYMENT',
+      source: 'customer',
+      changedById: null,
+      note: 'Order placed by customer',
+      createdAt: '2026-11-03T18:00:00.000Z',
+    },
+  ],
+};
+
+export const ApiCreateOrderDocs = () =>
+  applyDecorators(
+    ApiTags('Orders'),
+    ApiBearerAuth(),
+    ApiHeader({
+      name: 'Idempotency-Key',
+      required: true,
+      description:
+        'Unique key per checkout attempt (8-255 chars) so retries never create duplicate orders or charges',
+      example: 'checkout-order-20261103-001',
+    }),
+    OPTIONAL_CART_TOKEN_HEADER,
+    ApiOperation({
+      summary:
+        'Create an order from the current cart and initialize a Bachs payment checkout session',
+    }),
+    ApiBody({
+      type: CreateOrderDto,
+      examples: {
+        deliveryOrder: {
+          summary: 'Delivery order checkout',
+          value: {
+            cartId: '0195f1e2-d001-7000-8000-000000000601',
+            customer: {
+              name: 'Ada Obi',
+              phone: '08031234567',
+              email: 'ada@sharwama.ng',
+            },
+            address: {
+              street: '14 Admiralty Way, Lekki Phase 1',
+              landmark: 'Opposite Ebeano Supermarket',
+            },
+            notes: 'Please call when at the gate',
+          },
+        },
+        pickupOrder: {
+          summary: 'Pickup order checkout (no address needed)',
+          value: {
+            cartId: '0195f1e2-d001-7000-8000-000000000601',
+            customer: {
+              name: 'Ada Obi',
+              phone: '08031234567',
+              email: 'ada@sharwama.ng',
+            },
+            notes: 'Picking up in 25 minutes',
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.CREATED,
+      description:
+        'Order snapshotted from cart and Bachs checkout URL generated',
+      schema: {
+        example: {
+          order: SAMPLE_ORDER_OBJECT,
+          payment: {
+            paymentId: '0195f1e2-f001-7000-8000-000000000801',
+            checkoutId: 'chk_2N3o4P5q6R7s8T9u',
+            checkoutUrl: 'https://checkout.bachs.io/c/V8xQ2mZpLj9RfTa',
+            status: 'PENDING',
+          },
+          idempotentReplay: false,
+        },
+      },
+    }),
+  );
+
+export const ApiGetMyOrdersDocs = () =>
+  applyDecorators(
+    ApiTags('Orders'),
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'List order history for the currently authenticated customer',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Customer order history (newest first)',
+      schema: {
+        example: [SAMPLE_ORDER_OBJECT],
+      },
+    }),
+  );
+
+export const ApiGetOrderDocs = () =>
+  applyDecorators(
+    ApiTags('Orders'),
+    ApiBearerAuth(),
+    ApiOperation({
+      summary:
+        'Get order details and status history by Order ID or guest publicToken',
+    }),
+    ApiParam({
+      name: 'idOrToken',
+      description: 'Order UUID or guest publicToken UUID',
+      example: '0195f1e2-e001-7000-8000-000000000701',
+    }),
+    ApiQuery({
+      name: 'token',
+      required: false,
+      description:
+        'Guest publicToken (optional if idOrToken is already the publicToken or if authenticated as the order owner)',
+      example: '4a89f210-91c4-4e1a-b833-7c5128a9f001',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Full order details, items, payments, and status history',
+      schema: {
+        example: SAMPLE_ORDER_OBJECT,
+      },
+    }),
+  );
+
+export const ApiCancelOrderDocs = () =>
+  applyDecorators(
+    ApiTags('Orders'),
+    ApiBearerAuth(),
+    ApiOperation({
+      summary:
+        'Cancel an order (customers may cancel before PREPARING; admins may cancel before delivery)',
+    }),
+    ApiParam({
+      name: 'id',
+      description: 'Order UUID',
+      example: '0195f1e2-e001-7000-8000-000000000701',
+    }),
+    ApiQuery({
+      name: 'token',
+      required: false,
+      description: 'Guest publicToken (required when cancelling as a guest)',
+      example: '4a89f210-91c4-4e1a-b833-7c5128a9f001',
+    }),
+    ApiBody({
+      type: CancelOrderDto,
+      required: false,
+      schema: {
+        example: {
+          reason: 'Ordered the wrong delivery zone by mistake',
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Order cancelled and recorded in status history',
+      schema: {
+        example: {
+          ...SAMPLE_ORDER_OBJECT,
+          status: 'CANCELLED',
+        },
+      },
+    }),
+  );
+
+// ============================================================================
+// 9. PAYMENTS & WEBHOOKS ENDPOINTS (/api/v1/webhooks/bachs)
+// ============================================================================
+
+export const ApiBachsWebhookDocs = () =>
+  applyDecorators(
+    ApiTags('Payments'),
+    ApiOperation({
+      summary: 'Receive and process incoming Bachs webhook events',
+      description:
+        'Verifies HMAC-SHA256 signature (X-Bachs-Signature-V2 or X-Bachs-Signature + X-Bachs-Timestamp) against the raw request body, deduplicates via WebhookEvent, and marks orders PAID.',
+    }),
+    ApiHeader({
+      name: 'X-Bachs-Signature-V2',
+      required: false,
+      description:
+        'Preferred Bachs V2 signature header: t={timestamp},v1={signature}',
+      example:
+        't=1776780000,v1=5d41402abc4b2a76b9719d911017c592',
+    }),
+    ApiHeader({
+      name: 'X-Bachs-Signature',
+      required: false,
+      description: 'Fallback Bachs V1 HMAC-SHA256 hex digest',
+      example: '5d41402abc4b2a76b9719d911017c592',
+    }),
+    ApiHeader({
+      name: 'X-Bachs-Timestamp',
+      required: false,
+      description: 'Unix timestamp (seconds) when the webhook was sent',
+      example: '1776780000',
+    }),
+    ApiBody({
+      description:
+        'Raw JSON event payload sent by Bachs (collection.succeeded, checkout.completed, or collection.failed)',
+      schema: {
+        type: 'object',
+        example: {
+          id: 'evt_3ab4e0d5d27445cf8a52ab3d8cb8f0b1',
+          type: 'collection.succeeded',
+          created_at: '2026-11-03T18:02:18.402Z',
+          organization_id: 'acct_7KpQ2mNv4XbR9dLc',
+          data: {
+            charge_id: 'ch_1a2b3c4d5e6f',
+            checkout_id: 'chk_2N3o4P5q6R7s8T9u',
+            reference: '0195f1e2-e001-7000-8000-000000000701',
+            status: 'SUCCEEDED',
+            amount: '9240.00',
+            currency: 'NGN',
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Webhook verified and processed',
+      schema: {
+        example: {
+          received: true,
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.BAD_REQUEST,
+      description: 'Invalid or expired webhook signature',
+      schema: {
+        example: {
+          code: 'BAD_REQUEST',
+          message: 'Invalid or expired Bachs webhook signature',
+        },
+      },
+    }),
+  );
+
 
