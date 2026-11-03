@@ -52,7 +52,6 @@ const TRANSITIONS: Partial<
   Record<OrderStatus, Partial<Record<OrderStatus, TransitionRule>>>
 > = {
   [OrderStatus.PENDING_PAYMENT]: {
-    // PAID is only ever set by the webhook or reconciliation, never by a redirect.
     [OrderStatus.PAID]: { actors: ['SYSTEM'] },
     [OrderStatus.EXPIRED]: { actors: ['SYSTEM'] },
     [OrderStatus.CANCELLED]: { actors: ['CUSTOMER', 'ADMIN'] },
@@ -116,7 +115,6 @@ const TRANSITIONS: Partial<
     [OrderStatus.PAID]: { actors: ['ADMIN'], check: requirePaid },
     [OrderStatus.REFUNDED]: { actors: ['ADMIN'], check: requirePaid },
   },
-  // REFUNDED is terminal.
 };
 
 /** Statuses from which nothing else can happen. */
