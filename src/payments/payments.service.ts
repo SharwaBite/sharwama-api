@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   OrderStatus,
@@ -18,6 +13,7 @@ const RECONCILIATION_LOCK_ID = 8492019;
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
+  private isReconciling = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -25,7 +21,8 @@ export class PaymentsService {
   ) {}
 
   /**
-   * Initializes a Bachs checkout session and stores a PENDING payment record.
+   * Initializes a Bachs checkout session and upserts a PENDING payment record.
+   * Upserting on `providerReference` makes retries with the same `Idempotency-Key` safe.
    */
   async createSessionForOrder(order: {
     id: string;
@@ -48,8 +45,12 @@ export class PaymentsService {
       expiresInMinutes: 30,
     });
 
-    const payment = await this.prisma.payment.create({
-      data: {
+    const payment = await this.prisma.payment.upsert({
+      where: { providerReference: session.checkout_id },
+      update: {
+        checkoutUrl: session.checkout_url,
+      },
+      create: {
         orderId: order.id,
         provider: 'bachs',
         providerReference: session.checkout_id,
@@ -70,7 +71,7 @@ export class PaymentsService {
 
   /**
    * Processes verified Bachs webhook events (collection.succeeded, checkout.completed, collection.failed).
-   * Deduplicates using WebhookEvent table.
+   * Deduplicates using the WebhookEvent table.
    */
   async handleBachsWebhook(
     rawBody: Buffer | string | undefined,
@@ -121,35 +122,39 @@ export class PaymentsService {
   }
 
   /**
-   * Reconciliation cron job running every 5 minutes guarded by a Postgres advisory lock.
+   * Reconciliation cron job running every 5 minutes.
+   * Uses a transaction-scoped Postgres advisory lock (`pg_try_advisory_xact_lock`)
+   * so locks never leak across pooled connections.
    */
   @Cron(CronExpression.EVERY_5_MINUTES)
   async reconcilePendingPayments() {
-    const lockRows = await this.prisma.$queryRaw<{ pg_try_advisory_lock: boolean }[]>`
-      SELECT pg_try_advisory_lock(${RECONCILIATION_LOCK_ID}) as pg_try_advisory_lock;
-    `;
-
-    const acquired = lockRows[0]?.pg_try_advisory_lock ?? false;
-    if (!acquired) {
-      this.logger.debug(
-        'Reconciliation job skipped: lock already held by another worker',
-      );
+    if (this.isReconciling) {
       return;
     }
+    this.isReconciling = true;
 
     try {
-      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      const pendingPayments = await this.prisma.$transaction(async (tx) => {
+        const lockRows = await tx.$queryRaw<
+          { locked: boolean }[]
+        >`SELECT pg_try_advisory_xact_lock(${RECONCILIATION_LOCK_ID}) AS locked`;
 
-      const pendingPayments = await this.prisma.payment.findMany({
-        where: {
-          status: PaymentStatus.PENDING,
-          createdAt: { gte: twoHoursAgo },
-          order: {
-            status: OrderStatus.PENDING_PAYMENT,
+        if (!lockRows[0]?.locked) {
+          return [];
+        }
+
+        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+        return tx.payment.findMany({
+          where: {
+            status: PaymentStatus.PENDING,
+            createdAt: { gte: twoHoursAgo },
+            order: {
+              status: OrderStatus.PENDING_PAYMENT,
+            },
           },
-        },
-        include: { order: true },
-        take: 50,
+          include: { order: true },
+          take: 50,
+        });
       });
 
       for (const payment of pendingPayments) {
@@ -161,13 +166,17 @@ export class PaymentsService {
             continue;
           }
 
+          const paymentStatus = session.payment_status?.toLowerCase();
+          const sessionStatus = session.status?.toLowerCase();
+          const chargeStatus = session.charge?.status?.toLowerCase();
+
           const isPaid =
-            session.payment_status === 'paid' ||
-            (session.status === 'completed' &&
-              session.charge?.status?.toLowerCase() === 'succeeded');
+            paymentStatus === 'paid' ||
+            paymentStatus === 'succeeded' ||
+            (sessionStatus === 'completed' && chargeStatus === 'succeeded');
 
           if (isPaid) {
-            const rawAmount = session.amount ?? session.charge?.amount;
+            const rawAmount = session.charge?.amount ?? session.amount;
             const paidKobo = rawAmount
               ? BachsClient.decimalStringToKobo(rawAmount)
               : payment.amount;
@@ -187,9 +196,7 @@ export class PaymentsService {
         }
       }
     } finally {
-      await this.prisma.$queryRaw`
-        SELECT pg_advisory_unlock(${RECONCILIATION_LOCK_ID});
-      `;
+      this.isReconciling = false;
     }
   }
 
@@ -212,6 +219,15 @@ export class PaymentsService {
 
   private async handlePaymentSucceeded(event: BachsWebhookEvent) {
     const data = (event.data || {}) as Record<string, unknown>;
+
+    // For checkout.completed, verify a payment was actually collected
+    if (event.type === 'checkout.completed') {
+      const paymentStatus = (data.payment_status as string | undefined)?.toLowerCase();
+      if (paymentStatus && paymentStatus !== 'paid' && paymentStatus !== 'succeeded') {
+        return;
+      }
+    }
+
     const checkoutId = (data.checkout_id as string) || null;
     const orderId =
       (data.reference as string) ||
@@ -241,8 +257,8 @@ export class PaymentsService {
     }
 
     const rawAmount =
-      (data.amount as string) ||
-      ((data.charge as Record<string, unknown>)?.amount as string);
+      ((data.charge as Record<string, unknown>)?.amount as string) ||
+      (data.amount as string);
     const paidAmountKobo = rawAmount
       ? BachsClient.decimalStringToKobo(rawAmount)
       : payment.amount;
@@ -286,6 +302,18 @@ export class PaymentsService {
     note: string;
   }) {
     await this.prisma.$transaction(async (tx) => {
+      // Serialize concurrent webhook + reconciliation updates for the same order
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${params.orderId}))`;
+
+      const currentPayment = await tx.payment.findUnique({
+        where: { id: params.paymentId },
+      });
+
+      // Already finalized by an earlier event (e.g. collection.succeeded arrived before checkout.completed)
+      if (currentPayment?.status === PaymentStatus.SUCCEEDED) {
+        return;
+      }
+
       const order = await tx.order.findUnique({
         where: { id: params.orderId },
       });
