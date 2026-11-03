@@ -52,6 +52,8 @@ async function bootstrap() {
     .addTag('Menu Items (Admin)')
     .addTag('Menu Option Groups (Admin)')
     .addTag('Menu Options (Admin)')
+    .addTag('Orders')
+    .addTag('Payments')
     .addTag('Promo Codes')
     .addTag('Promo Codes (Admin)')
     .addTag('Store Settings')
