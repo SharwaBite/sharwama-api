@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { createObserveModule } from '@nestjs/observe';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { AddressesModule } from './addresses/addresses.module';
 import { AdminModule } from './admin/admin.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -43,7 +44,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     // 1. Auth first (after Health on AppController)
     AuthModule,
     // 2. Remaining feature modules in alphabetical order of their Swagger tags:
-    // Cart -> Delivery Zones -> Menu -> Orders -> Payments -> Promo Codes -> Store Settings
+    // Addresses -> Cart -> Delivery Zones -> Menu -> Orders -> Payments -> Promo Codes -> Store Settings
+    AddressesModule,
     CartModule,
     ZonesModule,
     MenuModule,
