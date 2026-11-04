@@ -41,10 +41,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       serviceId: 'sharwama-api',
     }),
     PrismaModule,
-    // 1. Auth first (after Health on AppController)
     AuthModule,
-    // 2. Remaining feature modules in alphabetical order of their Swagger tags:
-    // Addresses -> Cart -> Delivery Zones -> Menu -> Orders -> Payments -> Promo Codes -> Store Settings
     AddressesModule,
     CartModule,
     ZonesModule,

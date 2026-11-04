@@ -1926,3 +1926,480 @@ export const ApiBachsWebhookDocs = () =>
   );
 
 
+
+import {
+  CreateAddressDto,
+  UpdateAddressDto,
+} from '../../addresses/dto/address.dto';
+import {
+  AdminCancelOrderDto,
+  AssignRiderDto,
+  UpdateOrderStatusDto,
+} from '../../orders/dto/admin-order.dto';
+import { ResolveFlaggedPaymentDto } from '../../payments/admin.payments.service';
+
+// ============================================================================
+// 10. ORDERS (ADMIN) ENDPOINTS (/api/admin/orders)
+// ============================================================================
+
+const SAMPLE_ADMIN_ORDER = {
+  ...SAMPLE_ORDER_OBJECT,
+  status: 'PAID',
+  paidAt: '2026-11-03T18:02:18.402Z',
+  allowedNextStatuses: ['ACCEPTED', 'CANCELLED', 'REFUNDED'],
+};
+
+export const ApiGetAdminOrdersDocs = () =>
+  applyDecorators(
+    ApiTags('Orders (Admin)'),
+    ApiBearerAuth(),
+    ApiOperation({
+      summary:
+        'List and filter orders for the staff dashboard (status, type, date range, search, pagination)',
+    }),
+    ApiQuery({
+      name: 'status',
+      required: false,
+      description:
+        'Filter by OrderStatus (PENDING_PAYMENT, PAID, ACCEPTED, PREPARING, READY, OUT_FOR_DELIVERY, DELIVERED, PICKED_UP, CANCELLED, EXPIRED, REFUNDED)',
+      example: 'PAID',
+    }),
+    ApiQuery({
+      name: 'type',
+      required: false,
+      description: 'Filter by fulfillment type (DELIVERY or PICKUP)',
+      example: 'DELIVERY',
+    }),
+    ApiQuery({
+      name: 'search',
+      required: false,
+      description:
+        'Search by order number (e.g. 1001 or #1001), customer name, phone, or email',
+      example: '1001',
+    }),
+    ApiQuery({
+      name: 'fromDate',
+      required: false,
+      description: 'Filter orders placed on or after this ISO 8601 timestamp',
+      example: '2026-11-01T00:00:00.000Z',
+    }),
+    ApiQuery({
+      name: 'toDate',
+      required: false,
+      description: 'Filter orders placed on or before this ISO 8601 timestamp',
+      example: '2026-11-30T23:59:59.000Z',
+    }),
+    ApiQuery({
+      name: 'page',
+      required: false,
+      description: 'Page number (1-indexed)',
+      example: 1,
+    }),
+    ApiQuery({
+      name: 'limit',
+      required: false,
+      description: 'Items per page (1-100)',
+      example: 20,
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Paginated list of orders with allowedNextStatuses',
+      schema: {
+        example: {
+          items: [SAMPLE_ADMIN_ORDER],
+          pagination: {
+            total: 1,
+            page: 1,
+            limit: 20,
+            totalPages: 1,
+          },
+        },
+      },
+    }),
+  );
+
+export const ApiGetAdminOrderDetailDocs = () =>
+  applyDecorators(
+    ApiTags('Orders (Admin)'),
+    ApiBearerAuth(),
+    ApiOperation({
+      summary:
+        'Get full order detail for staff, including items, payments, status history, and allowedNextStatuses',
+    }),
+    ApiParam({
+      name: 'id',
+      description: 'Order UUID',
+      example: '0195f1e2-e001-7000-8000-000000000701',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Full admin order detail',
+      schema: {
+        example: SAMPLE_ADMIN_ORDER,
+      },
+    }),
+  );
+
+export const ApiUpdateAdminOrderStatusDocs = () =>
+  applyDecorators(
+    ApiTags('Orders (Admin)'),
+    ApiBearerAuth(),
+    ApiOperation({
+      summary:
+        'Advance or update an order status (PAID -> ACCEPTED -> PREPARING -> READY -> OUT_FOR_DELIVERY -> DELIVERED / PICKED_UP)',
+    }),
+    ApiParam({
+      name: 'id',
+      description: 'Order UUID',
+      example: '0195f1e2-e001-7000-8000-000000000701',
+    }),
+    ApiBody({
+      type: UpdateOrderStatusDto,
+      examples: {
+        acceptOrder: {
+          summary: 'Accept a paid order into the kitchen',
+          value: {
+            status: 'ACCEPTED',
+            note: 'Order accepted by kitchen',
+          },
+        },
+        startPreparing: {
+          summary: 'Mark order as preparing on the grill',
+          value: {
+            status: 'PREPARING',
+            note: 'Started grilling shawarma',
+          },
+        },
+        markReady: {
+          summary: 'Mark order as packed and ready',
+          value: {
+            status: 'READY',
+            note: 'Packed and ready at counter',
+          },
+        },
+        markDelivered: {
+          summary: 'Mark delivery order as delivered',
+          value: {
+            status: 'DELIVERED',
+            note: 'Handed over to customer at gate',
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Updated order with new status and history entry',
+      schema: {
+        example: {
+          ...SAMPLE_ADMIN_ORDER,
+          status: 'ACCEPTED',
+          allowedNextStatuses: ['PREPARING', 'CANCELLED', 'REFUNDED'],
+        },
+      },
+    }),
+  );
+
+export const ApiAssignOrderRiderDocs = () =>
+  applyDecorators(
+    ApiTags('Orders (Admin)'),
+    ApiBearerAuth(),
+    ApiOperation({
+      summary:
+        'Assign a delivery rider (name & phone) to a DELIVERY order, and optionally dispatch immediately',
+    }),
+    ApiParam({
+      name: 'id',
+      description: 'Order UUID',
+      example: '0195f1e2-e001-7000-8000-000000000701',
+    }),
+    ApiBody({
+      type: AssignRiderDto,
+      examples: {
+        assignAndDispatch: {
+          summary: 'Assign rider and transition READY -> OUT_FOR_DELIVERY',
+          value: {
+            riderName: 'Tunde Bakare',
+            riderPhone: '08099887766',
+            dispatchNow: true,
+          },
+        },
+        assignOnly: {
+          summary: 'Assign rider without changing order status yet',
+          value: {
+            riderName: 'Tunde Bakare',
+            riderPhone: '08099887766',
+            dispatchNow: false,
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Updated order with rider assigned',
+      schema: {
+        example: {
+          ...SAMPLE_ADMIN_ORDER,
+          status: 'OUT_FOR_DELIVERY',
+          riderName: 'Tunde Bakare',
+          riderPhone: '08099887766',
+          allowedNextStatuses: ['DELIVERED', 'CANCELLED', 'REFUNDED'],
+        },
+      },
+    }),
+  );
+
+export const ApiAdminCancelOrderDocs = () =>
+  applyDecorators(
+    ApiTags('Orders (Admin)'),
+    ApiBearerAuth(),
+    ApiOperation({ summary: 'Cancel an order as staff/admin with a reason' }),
+    ApiParam({
+      name: 'id',
+      description: 'Order UUID',
+      example: '0195f1e2-e001-7000-8000-000000000701',
+    }),
+    ApiBody({
+      type: AdminCancelOrderDto,
+      schema: {
+        example: {
+          reason: 'Customer requested cancellation via phone call',
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Order cancelled by staff',
+      schema: {
+        example: {
+          ...SAMPLE_ADMIN_ORDER,
+          status: 'CANCELLED',
+          allowedNextStatuses: ['REFUNDED'],
+        },
+      },
+    }),
+  );
+
+// ============================================================================
+// 11. PAYMENTS (ADMIN) ENDPOINTS (/api/admin/payments)
+// ============================================================================
+
+export const ApiGetFlaggedPaymentsDocs = () =>
+  applyDecorators(
+    ApiTags('Payments (Admin)'),
+    ApiBearerAuth(),
+    ApiOperation({
+      summary:
+        'List all payments flagged for manual staff review (underpaid or late payment after order expiry)',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'List of flagged payments with associated orders',
+      schema: {
+        example: [
+          {
+            id: '0195f1e2-f001-7000-8000-000000000801',
+            orderId: '0195f1e2-e001-7000-8000-000000000701',
+            provider: 'bachs',
+            providerReference: 'chk_2N3o4P5q6R7s8T9u',
+            checkoutUrl: 'https://checkout.bachs.io/c/V8xQ2mZpLj9RfTa',
+            status: 'SUCCEEDED',
+            amount: 924000,
+            paidAmount: 924000,
+            currency: 'NGN',
+            needsReview: true,
+            reviewReason: 'Late payment received for expired order',
+            paidAt: '2026-11-03T18:35:00.000Z',
+            order: {
+              ...SAMPLE_ORDER_OBJECT,
+              status: 'EXPIRED',
+            },
+          },
+        ],
+      },
+    }),
+  );
+
+export const ApiResolveFlaggedPaymentDocs = () =>
+  applyDecorators(
+    ApiTags('Payments (Admin)'),
+    ApiBearerAuth(),
+    ApiOperation({
+      summary:
+        'Resolve a flagged payment by accepting the order as PAID, marking it REFUNDED, or dismissing the flag',
+    }),
+    ApiParam({
+      name: 'id',
+      description: 'Payment UUID',
+      example: '0195f1e2-f001-7000-8000-000000000801',
+    }),
+    ApiBody({
+      type: ResolveFlaggedPaymentDto,
+      examples: {
+        acceptLateOrder: {
+          summary: 'Accept the late payment and move order to PAID',
+          value: {
+            action: 'ACCEPT_ORDER',
+            note: 'Kitchen is still open; accepted late transfer and preparing order',
+          },
+        },
+        markRefunded: {
+          summary: 'Refund the customer and mark order REFUNDED',
+          value: {
+            action: 'MARK_REFUNDED',
+            note: 'Refunded via Bachs dashboard because shop had closed',
+          },
+        },
+        dismissFlag: {
+          summary: 'Clear the review flag without changing order status',
+          value: {
+            action: 'DISMISS',
+            note: 'Verified with customer',
+          },
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Flagged payment resolved and order updated',
+      schema: {
+        example: {
+          payment: {
+            id: '0195f1e2-f001-7000-8000-000000000801',
+            orderId: '0195f1e2-e001-7000-8000-000000000701',
+            status: 'SUCCEEDED',
+            amount: 924000,
+            paidAmount: 924000,
+            needsReview: false,
+            reviewReason: 'Late payment received for expired order',
+          },
+          order: {
+            ...SAMPLE_ORDER_OBJECT,
+            status: 'PAID',
+          },
+        },
+      },
+    }),
+  );
+
+// ============================================================================
+// 12. ADDRESSES ENDPOINTS (/api/addresses)
+// ============================================================================
+
+const SAMPLE_ADDRESS = {
+  id: '0195f1e2-a900-7000-8000-000000000901',
+  userId: '0195f1e2-0001-7000-8000-000000000099',
+  zoneId: '0195f1e2-a1b2-7000-8000-000000000001',
+  label: 'Home',
+  street: '14 Admiralty Way, Lekki Phase 1',
+  landmark: 'Opposite Ebeano Supermarket',
+  isDefault: true,
+  zone: {
+    id: '0195f1e2-a1b2-7000-8000-000000000001',
+    name: 'Lekki Phase 1 & Environs',
+    areas: ['Lekki Phase 1', 'Marwa', 'Ikate'],
+    fee: 150000,
+    isActive: true,
+  },
+};
+
+export const ApiGetAddressesDocs = () =>
+  applyDecorators(
+    ApiTags('Addresses'),
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'List saved delivery addresses for the authenticated customer',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Customer saved addresses (default address first)',
+      schema: {
+        example: [SAMPLE_ADDRESS],
+      },
+    }),
+  );
+
+export const ApiCreateAddressDocs = () =>
+  applyDecorators(
+    ApiTags('Addresses'),
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'Save a new delivery address for the authenticated customer',
+    }),
+    ApiBody({
+      type: CreateAddressDto,
+      schema: {
+        example: {
+          label: 'Home',
+          street: '14 Admiralty Way, Lekki Phase 1',
+          landmark: 'Opposite Ebeano Supermarket',
+          zoneId: '0195f1e2-a1b2-7000-8000-000000000001',
+          isDefault: true,
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.CREATED,
+      description: 'Created address with delivery zone details',
+      schema: {
+        example: SAMPLE_ADDRESS,
+      },
+    }),
+  );
+
+export const ApiUpdateAddressDocs = () =>
+  applyDecorators(
+    ApiTags('Addresses'),
+    ApiBearerAuth(),
+    ApiOperation({ summary: 'Update a saved delivery address' }),
+    ApiParam({
+      name: 'id',
+      description: 'Address UUID',
+      example: '0195f1e2-a900-7000-8000-000000000901',
+    }),
+    ApiBody({
+      type: UpdateAddressDto,
+      schema: {
+        example: {
+          label: 'Office',
+          street: '22 Adeola Odeku Street, Victoria Island',
+          landmark: 'Beside Mega Plaza',
+          zoneId: '0195f1e2-a1b2-7000-8000-000000000001',
+          isDefault: true,
+        },
+      },
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Updated address',
+      schema: {
+        example: {
+          ...SAMPLE_ADDRESS,
+          label: 'Office',
+          street: '22 Adeola Odeku Street, Victoria Island',
+          landmark: 'Beside Mega Plaza',
+        },
+      },
+    }),
+  );
+
+export const ApiDeleteAddressDocs = () =>
+  applyDecorators(
+    ApiTags('Addresses'),
+    ApiBearerAuth(),
+    ApiOperation({ summary: 'Delete a saved delivery address' }),
+    ApiParam({
+      name: 'id',
+      description: 'Address UUID',
+      example: '0195f1e2-a900-7000-8000-000000000901',
+    }),
+    ApiResponse({
+      status: HttpStatus.OK,
+      description: 'Address deleted',
+      schema: {
+        example: {
+          deleted: true,
+          id: '0195f1e2-a900-7000-8000-000000000901',
+        },
+      },
+    }),
+  );
